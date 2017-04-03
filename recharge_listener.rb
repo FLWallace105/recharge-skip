@@ -25,7 +25,7 @@ post '/recharge' do
   puts "doing post stuff"
   puts params.inspect
   #'Hello Post'
-  #should get here but doesnt
+  #should get here but doesnt sadly
 
 end
 
