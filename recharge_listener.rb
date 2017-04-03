@@ -6,9 +6,11 @@ require "resque"
 
 class SkipIt < Sinatra::Base
 
+
 configure do 
-  set :server, :puma 
+  
   enable :logging
+  set :server, :puma
   Dotenv.load
   $recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
   end
