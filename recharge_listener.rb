@@ -25,6 +25,7 @@ post '/recharge' do
   puts "doing post stuff"
   puts params.inspect
   #'Hello Post'
+  #should get here but doesnt
 
 end
 
@@ -53,7 +54,7 @@ class MyParamHandler
   def self.perform(shopify_id)
     #get the recharge customer_id
     #recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
-    puts "recharge_access_token = #{$recharge_access_token}"
+    #puts "recharge_access_token = #{$recharge_access_token}"
     @my_header = {
             "X-Recharge-Access-Token" => "#{$recharge_access_token}"
         }
