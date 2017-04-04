@@ -72,9 +72,13 @@ class MyParamHandler
     puts my_info.inspect
     my_recharge_id = my_info['customers'][0]['id']
     puts my_recharge_id
+    puts "Must sleep for two seconds"
+    sleep 2
     #get all charges to find right one
     charges_customer = HTTParty.get("https://api.rechargeapps.com/charges?customer_id=#{my_recharge_id}&status=queued", :headers => @my_header )
     all_charges = charges_customer.parsed_response
+    puts "Must sleep again for two seconds"
+    sleep 2
 
     puts all_charges['charges'].inspect
     
@@ -107,6 +111,8 @@ class MyParamHandler
           #Here we skip the subscription to the next month
           subscription_info = HTTParty.get("https://api.rechargeapps.com/subscriptions/#{subscription_id}", :headers => @my_header )
           my_subscription = subscription_info.parsed_response
+          puts "Gotta sleep again sorry two seconds"
+          sleep 2
           subscription_date = my_subscription['subscription']['next_charge_scheduled_at']
           puts "subscription_date = #{subscription_date}"
           my_sub_date = DateTime.parse(subscription_date)
