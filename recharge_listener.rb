@@ -13,6 +13,9 @@ configure do
   set :server, :puma
   Dotenv.load
   $recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
+  uri2 = URI.parse(ENV["REDIS_URL"])
+  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+ 
   end
 
 
@@ -39,8 +42,6 @@ get '/recharge' do
   shopify_id = params['shopify_id']
   puts shopify_id
   #stuff below for Heroku 
-  uri2 = URI.parse(ENV["REDIS_URL"])
-  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   Resque.redis = REDIS
   
   
