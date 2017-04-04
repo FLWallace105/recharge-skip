@@ -120,7 +120,7 @@ class MyParamHandler
           my_day_month = my_sub_date.strftime("%e").to_i
         
           next_month_name = my_next_month.strftime("%B")
-          #puts next_month_name
+          #puts next_month_name 
           #Constructors for new subscription charge date
           my_new_year = my_next_month.strftime("%Y")
           my_new_month = my_next_month.strftime("%m")
