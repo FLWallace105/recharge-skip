@@ -12,10 +12,15 @@ configure do
   enable :logging
   set :server, :puma
   Dotenv.load
+  mime_type :application_javascript, 'application/javascript'
   $recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
+  $my_get_header =  {
+            "X-Recharge-Access-Token" => "#{$recharge_access_token}"
+        }
+  
   uri2 = URI.parse(ENV["REDIS_URL"])
   REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
- 
+  
   end
 
 
@@ -35,7 +40,8 @@ post '/recharge' do
 end
 
 get '/recharge' do
-  '200'
+  content_type :application_javascript
+  status 200
   puts "doing GET stuff"
   puts params.inspect
   #'Hello Get unhappy here'
@@ -46,10 +52,86 @@ get '/recharge' do
   
   
   Resque.enqueue(MyParamHandler, shopify_id)
-  
-
 
 end
+
+get '/recharge-change-ship' do
+puts "doing the change data GET stuff"
+puts params.inspect
+shopify_id = params['shopify_id']
+callback_id = params['_']
+choosedate_data = {"shopify_id" => shopify_id, "callback_id" => callback_id}
+#Resque.enqueue(ChooseDate, choosedate_data)
+content_type :application_javascript
+get_subs_date(shopify_id)
+
+end
+
+
+
+helpers do
+  def get_subs_date(shopify_id)
+    #Get alt_title
+    current_month = Date.today.strftime("%B")
+    alt_title = "#{current_month} VIP Box"
+    orig_sub_date = ""
+
+    get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+    subscriber_info = get_sub_info.parsed_response
+    #puts subscriber_info.inspect
+    subscriptions = get_sub_info.parsed_response['subscriptions']
+    puts subscriptions.inspect
+    subscriptions.each do |subs|
+      puts subs.inspect
+      if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
+         puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
+         
+         end
+     end
+     orig_sub_date ="\"#{orig_sub_date}\""
+     orig_sub_date
+
+  end
+
+end
+
+
+
+class ChooseDate
+  @queue = "choosedate"
+  def self.perform(choosedate_data)
+    puts choosedate_data.inspect
+    shopify_id = choosedate_data['shopify_id']
+    callback_id = choosedate_data['callback_id']
+    puts "shopify_id = #{shopify_id}"
+    puts "callback_id = #{callback_id}"
+    #puts "#{settings.my_get_header}"
+
+    #Get alt_title
+    current_month = Date.today.strftime("%B")
+    alt_title = "#{current_month} VIP Box"
+    orig_sub_date = ""
+
+    get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+    subscriber_info = get_sub_info.parsed_response
+    #puts subscriber_info.inspect
+    subscriptions = get_sub_info.parsed_response['subscriptions']
+    puts subscriptions.inspect
+    subscriptions.each do |subs|
+      puts subs.inspect
+      if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
+         puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
+         #status 200
+         #body "#{subs['next_charge_scheduled_at']}"
+         orig_sub_date = subs['next_charge_scheduled_at']
+         send_data = HTTParty.post("")
+         end
+     end
+
+  end
+end
+
+
 
 
 class MyParamHandler
