@@ -241,59 +241,71 @@ class MyParamHandler
           subscription_date = my_subscription['subscription']['next_charge_scheduled_at']
           puts "subscription_date = #{subscription_date}"
           my_sub_date = DateTime.parse(subscription_date)
-          my_next_month = my_sub_date >> 1
-          my_day_month = my_sub_date.strftime("%e").to_i
+          #Check to make sure they are not skipping next month
+          subscriber_actual_next_charge_month = my_sub_date.strftime("%B")
+          puts subscriber_actual_next_charge_month
+          puts current_month
+          if subscriber_actual_next_charge_month == current_month
+
+            my_next_month = my_sub_date >> 1
+            my_day_month = my_sub_date.strftime("%e").to_i
         
-          next_month_name = my_next_month.strftime("%B")
-          #puts next_month_name 
-          #Constructors for new subscription charge date
-          my_new_year = my_next_month.strftime("%Y")
-          my_new_month = my_next_month.strftime("%m")
-          my_new_day = my_next_month.strftime("%d")
+            next_month_name = my_next_month.strftime("%B")
+            #puts next_month_name 
+            #Constructors for new subscription charge date
+            my_new_year = my_next_month.strftime("%Y")
+            my_new_month = my_next_month.strftime("%m")
+            my_new_day = my_next_month.strftime("%d")
 
-          month_31 = ["January", "March", "May", "July", "August", "October", "December"]
-          month_30 = ["April", "June", "September", "November"]
+            month_31 = ["January", "March", "May", "July", "August", "October", "December"]
+            month_30 = ["April", "June", "September", "November"]
 
-          if month_31.include? next_month_name
-            puts "No need to adjust next month day, it has 31 days!"
-            #Just advance subscription date by one day
-            my_new_sub_date = "#{my_new_year}-#{my_new_month}-#{my_new_day}T00:00:00"
+            if month_31.include? next_month_name
+              puts "No need to adjust next month day, it has 31 days!"
+              #Just advance subscription date by one day
+              my_new_sub_date = "#{my_new_year}-#{my_new_month}-#{my_new_day}T00:00:00"
+              my_data = {
+              "date" => my_new_sub_date
+                  }
+              my_data = my_data.to_json
+              reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{subscription_id}/set_next_charge_date", :headers => @my_change_charge_header, :body => my_data)
+              puts "Changed Subscription Info, Details below:"
+            puts reset_subscriber_date
+          elsif month_30.include? next_month_name
+            puts "We need to fix day 31 for this month since this month has only 30"
+            if my_day_month == 31
+              my_day_month = 30
+              puts "New Day for Charge: #{my_day_month}"
+              end
+            my_new_sub_date = "#{my_new_year}-#{my_new_month}-#{my_day_month}T00:00:00"
             my_data = {
-             "date" => my_new_sub_date
+              "date" => my_new_sub_date
+                 }
+            my_data = my_data.to_json
+            reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{subscription_id}/set_next_charge_date", :headers => @my_change_charge_header, :body => my_data)
+            puts "Changed Subscription Info, Details below:"
+            puts reset_subscriber_date
+          else
+            puts "we need to fix days 29-31 since Feb has only 28 and eff leap year"
+            if my_day_month > 28
+              my_day_month = 28
+              puts "New Day for Charge in Feb: #{my_day_month}"
+            end
+            my_new_sub_date = "#{my_new_year}-#{my_new_month}-#{my_day_month}T00:00:00"
+            my_data = {
+              "date" => my_new_sub_date
                 }
             my_data = my_data.to_json
             reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{subscription_id}/set_next_charge_date", :headers => @my_change_charge_header, :body => my_data)
             puts "Changed Subscription Info, Details below:"
-          puts reset_subscriber_date
-        elsif month_30.include? next_month_name
-          puts "We need to fix day 31 for this month since this month has only 30"
-          if my_day_month == 31
-              my_day_month = 30
-              puts "New Day for Charge: #{my_day_month}"
-              end
-          my_new_sub_date = "#{my_new_year}-#{my_new_month}-#{my_day_month}T00:00:00"
-          my_data = {
-            "date" => my_new_sub_date
-                }
-          my_data = my_data.to_json
-          reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{subscription_id}/set_next_charge_date", :headers => @my_change_charge_header, :body => my_data)
-          puts "Changed Subscription Info, Details below:"
-          puts reset_subscriber_date
-        else
-          puts "we need to fix days 29-31 since Feb has only 28 and eff leap year"
-          if my_day_month > 28
-            my_day_month = 28
-            puts "New Day for Charge in Feb: #{my_day_month}"
-          end
-          my_new_sub_date = "#{my_new_year}-#{my_new_month}-#{my_day_month}T00:00:00"
-          my_data = {
-            "date" => my_new_sub_date
-                }
-          my_data = my_data.to_json
-          reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{subscription_id}/set_next_charge_date", :headers => @my_change_charge_header, :body => my_data)
-          puts "Changed Subscription Info, Details below:"
-          puts reset_subscriber_date
+            puts reset_subscriber_date
         end
+          else
+            #we can't skip the month because it is next month
+            puts "Sorry We Can't Skip next month as it is next month"
+          end
+
+
 
 
         end
