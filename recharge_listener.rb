@@ -76,7 +76,7 @@ end
 get '/recharge-new-ship-date' do
   content_type :application_javascript
   status 200
-
+ 
   puts "Doing change ship date"
   puts params.inspect
   shopify_id = params['shopify_id']
