@@ -17,9 +17,14 @@ configure do
   $my_get_header =  {
             "X-Recharge-Access-Token" => "#{$recharge_access_token}"
         }
+  $my_change_charge_header = {
+            "X-Recharge-Access-Token" => "#{$recharge_access_token}",
+            "Accept" => "application/json",
+            "Content-Type" =>"application/json"
+        }
   
-  uri2 = URI.parse(ENV["REDIS_URL"])
-  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+  #uri2 = URI.parse(ENV["REDIS_URL"])
+  #REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
   end
 
@@ -48,7 +53,7 @@ get '/recharge' do
   shopify_id = params['shopify_id']
   puts shopify_id
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   
   
   Resque.enqueue(MyParamHandler, shopify_id)
@@ -56,6 +61,7 @@ get '/recharge' do
 end
 
 get '/recharge-change-ship' do
+
 puts "doing the change data GET stuff"
 puts params.inspect
 shopify_id = params['shopify_id']
@@ -64,6 +70,20 @@ choosedate_data = {"shopify_id" => shopify_id, "callback_id" => callback_id}
 #Resque.enqueue(ChooseDate, choosedate_data)
 content_type :application_javascript
 get_subs_date(shopify_id)
+
+end
+
+get '/recharge-new-ship-date' do
+  content_type :application_javascript
+  status 200
+
+  puts "Doing change ship date"
+  puts params.inspect
+  shopify_id = params['shopify_id']
+  new_date = params['new_date']
+  choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date}
+  
+  Resque.enqueue(ChooseDate, choosedate_data)
 
 end
 
@@ -102,15 +122,16 @@ class ChooseDate
   def self.perform(choosedate_data)
     puts choosedate_data.inspect
     shopify_id = choosedate_data['shopify_id']
-    callback_id = choosedate_data['callback_id']
+    new_date = choosedate_data['new_date']
     puts "shopify_id = #{shopify_id}"
-    puts "callback_id = #{callback_id}"
+    puts "new_date = #{new_date}"
     #puts "#{settings.my_get_header}"
 
     #Get alt_title
     current_month = Date.today.strftime("%B")
     alt_title = "#{current_month} VIP Box"
     orig_sub_date = ""
+    my_subscription_id = ''
 
     get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
     subscriber_info = get_sub_info.parsed_response
@@ -121,12 +142,34 @@ class ChooseDate
       puts subs.inspect
       if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
          puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
-         #status 200
-         #body "#{subs['next_charge_scheduled_at']}"
          orig_sub_date = subs['next_charge_scheduled_at']
-         send_data = HTTParty.post("")
+         my_subscription_id = subs['id']
+         
          end
      end
+     puts "Must sleep for 3 secs"
+     sleep 3
+     get_customer_email = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+     customer_email = get_customer_email.parsed_response
+     cust_email = customer_email['customers']
+     puts cust_email.inspect
+     #puts cust_email[0]['email']
+     my_customer_email = cust_email[0]['email']
+     puts "My customer_email = #{my_customer_email}" 
+     puts "Must sleep for 3 secs again"
+     sleep 3
+
+     my_new_sub_date = "#{new_date}T00:00:00"
+     my_data = {
+             "date" => my_new_sub_date
+                }
+    my_data = my_data.to_json
+    puts "My Subscription ID = #{my_subscription_id}"
+    reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{my_subscription_id}/set_next_charge_date", :headers => $my_change_charge_header, :body => my_data)
+    puts "Changed Subscription Info, Details below:"
+    puts reset_subscriber_date
+
+     
 
   end
 end
