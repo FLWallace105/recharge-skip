@@ -3,6 +3,7 @@ require 'sinatra'
 require 'httparty'
 require 'dotenv'
 require "resque"
+require_relative 'worker_helpers'
 
 class SkipIt < Sinatra::Base
 
@@ -23,55 +24,34 @@ configure do
             "Content-Type" =>"application/json"
         }
   
-  #uri2 = URI.parse(ENV["REDIS_URL"])
-  #REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+  uri2 = URI.parse(ENV["REDIS_URL"])
+  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
   end
 
 
 
-get '/' do
-  puts "got here"
-  'Hello world!'
 
-end
 
-post '/recharge' do
-  puts "doing post stuff"
-  puts params.inspect
-  #'Hello Post'
-  #should get here but doesnt sadly
-
-end
 
 get '/recharge' do
   content_type :application_javascript
   status 200
   puts "doing GET stuff"
   puts params.inspect
-  #'Hello Get unhappy here'
   shopify_id = params['shopify_id']
   puts shopify_id
+  action = params['action']
+
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
+  skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
+  Resque.enqueue(SkipMonth, skip_month_data)
   
-  
-  Resque.enqueue(MyParamHandler, shopify_id)
 
 end
 
-get '/recharge-change-ship' do
 
-puts "doing the change data GET stuff"
-puts params.inspect
-shopify_id = params['shopify_id']
-callback_id = params['_']
-choosedate_data = {"shopify_id" => shopify_id, "callback_id" => callback_id}
-#Resque.enqueue(ChooseDate, choosedate_data)
-content_type :application_javascript
-get_subs_date(shopify_id)
-
-end
 
 get '/recharge-new-ship-date' do
   content_type :application_javascript
@@ -81,11 +61,32 @@ get '/recharge-new-ship-date' do
   puts params.inspect
   shopify_id = params['shopify_id']
   new_date = params['new_date']
-  choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date}
+  action = params['action']
+  choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date, 'action' => action}
   
+  #stuff below for Heroku 
+  Resque.redis = REDIS
   Resque.enqueue(ChooseDate, choosedate_data)
 
 end
+
+get '/recharge-unskip' do
+  content_type :application_javascript
+  status 200
+ 
+  puts "Doing unskipping task"
+  puts params.inspect
+  shopify_id = params['shopify_id']
+  action = params['action']
+
+  unskip_data = {"shopify_id" => shopify_id, "action" => action }
+
+  #stuff below for Heroku 
+  Resque.redis = REDIS
+  Resque.enqueue(UnSkip, unskip_data)
+
+  end
+
 
 
 
@@ -115,66 +116,156 @@ helpers do
 
 end
 
+class UnSkip
+  extend FixMonth
+  @queue = "unskip"
+  def self.perform(unskip_data)
+    puts unskip_data.inspect
+    shopify_id = unskip_data['shopify_id']
+    action = unskip_data['action']
+    #first check to see if we are doing the correct action
+    if action == 'unskip_month'
+      puts "shopify_id = #{shopify_id}"
+      #Get alt_title
+      current_month = Date.today.strftime("%B")
+      alt_title = "#{current_month} VIP Box"
+      orig_sub_date = ""
+      my_subscription_id = ''
+
+      my_subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
+      orig_sub_date = my_subscriber_data['orig_sub_date']
+      my_subscription_id = my_subscriber_data['my_subscription_id']
+      puts "My Subscriber ID = #{my_subscription_id}, my original date = #{orig_sub_date}"
 
 
-class ChooseDate
-  @queue = "choosedate"
-  def self.perform(choosedate_data)
-    puts choosedate_data.inspect
-    shopify_id = choosedate_data['shopify_id']
-    new_date = choosedate_data['new_date']
-    puts "shopify_id = #{shopify_id}"
-    puts "new_date = #{new_date}"
-    #puts "#{settings.my_get_header}"
-
-    #Get alt_title
-    current_month = Date.today.strftime("%B")
-    alt_title = "#{current_month} VIP Box"
-    orig_sub_date = ""
-    my_subscription_id = ''
-
-    get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
-    subscriber_info = get_sub_info.parsed_response
-    #puts subscriber_info.inspect
-    subscriptions = get_sub_info.parsed_response['subscriptions']
-    puts subscriptions.inspect
-    subscriptions.each do |subs|
-      puts subs.inspect
-      if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
-         puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
-         orig_sub_date = subs['next_charge_scheduled_at']
-         my_subscription_id = subs['id']
-         
-         end
-     end
      puts "Must sleep for 3 secs"
      sleep 3
-     get_customer_email = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
-     customer_email = get_customer_email.parsed_response
-     cust_email = customer_email['customers']
-     puts cust_email.inspect
-     #puts cust_email[0]['email']
-     my_customer_email = cust_email[0]['email']
+     
+     my_customer_email = request_customer_email(shopify_id, $my_get_header)
+
      puts "My customer_email = #{my_customer_email}" 
      puts "Must sleep for 3 secs again"
      sleep 3
+     customer_next_subscription_date = DateTime.parse(orig_sub_date)
+     customer_previous_month = customer_next_subscription_date << 1
+     customer_previous_month_name = customer_previous_month.strftime("%B")
+     puts "Customer Previous Month Name = #{customer_previous_month_name}"
+     puts "Current Month = #{current_month}"
+     if current_month == customer_previous_month_name
+        puts "Unskipping Month"
+        my_data = ""
+        my_data = unskip_month_recharge(customer_next_subscription_date)
+        puts my_data.inspect
+        puts "My Subscription ID = #{my_subscription_id}"
+        reset_charge_date_post(my_subscription_id, $my_change_charge_header, my_data)
+        
 
-     my_new_sub_date = "#{new_date}T00:00:00"
-     my_data = {
-             "date" => my_new_sub_date
-                }
-    my_data = my_data.to_json
-    puts "My Subscription ID = #{my_subscription_id}"
-    reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{my_subscription_id}/set_next_charge_date", :headers => $my_change_charge_header, :body => my_data)
-    puts "Changed Subscription Info, Details below:"
-    puts reset_subscriber_date
+     else
+        puts "Months to unskip don't match, not doing anything"
+    
+     end
+   
 
-     
+    else
+      puts "Sorry that action is not unskip_month we won't do anything"
+
+    end
+
+
 
   end
 end
 
 
+class ChooseDate
+  extend FixMonth
+  @queue = "choosedate"
+  def self.perform(choosedate_data)
+    puts choosedate_data.inspect
+    shopify_id = choosedate_data['shopify_id']
+    new_date = choosedate_data['new_date']
+    action = choosedate_data['action']
+
+    puts "shopify_id = #{shopify_id}"
+    puts "new_date = #{new_date}"
+    puts "action = #{action}"
+
+    if action == 'change_date'
+      puts "Changing the date for charge/shipping"
+      #Get alt_title
+      current_month = Date.today.strftime("%B")
+      alt_title = "#{current_month} VIP Box"
+      orig_sub_date = ""
+      my_subscription_id = ''
+      #puts "#{shopify_id}, #{$my_get_header}, #{alt_title}"
+      subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
+      my_subscription_id = subscriber_data['my_subscription_id']
+      orig_sub_date = subscriber_data['orig_sub_date']
+      puts "Subscription_id = #{my_subscription_id}, original_subscription_date = #{orig_sub_date}"
+      puts "Must sleep 3 seconds"
+      sleep 3
+      my_customer_email = request_customer_email(shopify_id, $my_get_header)
+
+      puts "My customer_email = #{my_customer_email}" 
+      puts "Must sleep for 3 secs again"
+      sleep 3
+      check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
+    else
+      puts "Action must be change_date, and action is #{action} so we can't do anything."
+    end     
+
+  end
+end
+
+class SkipMonth
+  extend FixMonth
+  @queue = "skipthismonth"
+  def self.perform(skip_month_data)
+    puts skip_month_data.inspect
+    action = skip_month_data['action']
+    shopify_id = skip_month_data['shopify_id']
+    if action == 'skip_month'
+      current_month = Date.today.strftime("%B")
+      alt_title = "#{current_month} VIP Box"
+      orig_sub_date = ""
+      my_subscription_id = ''
+
+      my_subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
+      orig_sub_date = my_subscriber_data['orig_sub_date']
+      my_subscription_id = my_subscriber_data['my_subscription_id']
+      puts "My Subscriber ID = #{my_subscription_id}, my original date = #{orig_sub_date}"
+
+
+     puts "Must sleep for 3 secs"
+     sleep 3
+     
+     my_customer_email = request_customer_email(shopify_id, $my_get_header)
+
+     puts "My customer_email = #{my_customer_email}" 
+     puts "Must sleep for 3 secs again"
+     sleep 3
+     #Now check to see if the subscriber can skip to next month, i.e. their current
+     #next_subscription date is this month. If not, do nothing.
+     my_sub_date = DateTime.parse(orig_sub_date)  
+     subscriber_actual_next_charge_month = my_sub_date.strftime("%B")
+     puts "Subscriber next charge month = #{subscriber_actual_next_charge_month}"
+     puts "Current month is #{current_month}"
+     if current_month == subscriber_actual_next_charge_month 
+        puts "Skipping charge to next month"
+        skip_to_next_month(my_subscription_id, my_sub_date, $my_change_charge_header)
+        
+     else
+        puts "We can't do anything, the next_charge_month is #{subscriber_actual_next_charge_month} which is not the current month -- #{current_month}"
+     end 
+
+
+    else
+      puts "We can't do anything, action is #{action} which is not skip_month dude!"
+    end
+
+  end
+
+end
 
 
 class MyParamHandler
