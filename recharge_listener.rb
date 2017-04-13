@@ -13,7 +13,10 @@ configure do
   enable :logging
   set :server, :puma
   Dotenv.load
+  set :protection, :except => [:json_csrf]
+
   mime_type :application_javascript, 'application/javascript'
+  mime_type :application_json, 'application/json'
   $recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
   $my_get_header =  {
             "X-Recharge-Access-Token" => "#{$recharge_access_token}"
@@ -24,8 +27,8 @@ configure do
             "Content-Type" =>"application/json"
         }
   
-  uri2 = URI.parse(ENV["REDIS_URL"])
-  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+  #uri2 = URI.parse(ENV["REDIS_URL"])
+  #REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
   end
 
@@ -44,7 +47,7 @@ get '/recharge' do
   action = params['action']
 
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
   Resque.enqueue(SkipMonth, skip_month_data)
   
@@ -65,7 +68,7 @@ get '/recharge-new-ship-date' do
   choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date, 'action' => action}
   
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   Resque.enqueue(ChooseDate, choosedate_data)
 
 end
@@ -82,15 +85,95 @@ get '/recharge-unskip' do
   unskip_data = {"shopify_id" => shopify_id, "action" => action }
 
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   Resque.enqueue(UnSkip, unskip_data)
 
-  end
+end
+
+get '/customer_size_returner' do
+  content_type :application_json
+  puts params.inspect
+  action = params['action']
+  shopify_id = params['shopify_id']
+  puts "Shopify_id = #{shopify_id} and action = #{action}"
+  sleep 6
+  
+  my_data = {"shopify_id" => shopify_id, "action" => action}
+  customer_data = return_cust_sizes(my_data)
+  puts customer_data.inspect
+  customer_data = customer_data.to_json
+  send_back = "custSize(#{customer_data})"
+  body send_back
+  puts send_back
+  
+  puts "Done now"
+
+end
 
 
 
 
 helpers do
+
+  def return_cust_sizes(my_data)
+    #first check to make sure it is correct action
+    action = my_data['action']
+    shopify_id = my_data['shopify_id']
+    current_month = Date.today.strftime("%B")
+    alt_title = "#{current_month} VIP Box"
+    # --------- define customer size variables and instantiate the customer size array
+    leggings_size = ''
+    bra_size = ''
+    tops_size = ''
+    customer_sizes = {}
+    orig_sub_date = ''
+    # ----------------
+    if action == 'need_cust_sizes'
+      puts "Getting Customer Sizes"
+      my_subscription_id = ''
+      orig_sub_date = ''
+      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+      subscriber_info = get_sub_info.parsed_response
+      #puts subscriber_info.inspect
+      subscriptions = get_sub_info.parsed_response['subscriptions']
+      puts subscriptions.inspect
+      subscriptions.each do |subs|
+        puts subs.inspect
+        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
+          #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
+          orig_sub_date = subs['next_charge_scheduled_at']
+          my_subscription_id = subs['id'] 
+          sizes_stuff = subs['properties'] 
+          puts sizes_stuff.inspect
+          sizes_stuff.each do |stuff|
+            puts stuff.inspect
+              case stuff['name']
+                when 'leggings'
+                    leggings_size = stuff['value']
+                when 'sports-bra'
+                    bra_size = stuff['value']
+                when 'tops'
+                    tops_size = stuff['value']
+              end #case
+
+            end
+                
+          end
+        end
+      #set customer sizes
+      customer_sizes = {"leggings" => leggings_size, "bra_size" => bra_size, "tops_size" => tops_size}
+      my_subscriber_data = {'next_charge_date' => orig_sub_date, 'cust_size_data' => customer_sizes }
+      puts my_subscriber_data.inspect
+      return my_subscriber_data
+
+    else
+      puts "Wrong action, action #{action} is not need_cust_sizes"
+      puts "cant do anything"
+    end
+
+  end
+
+
   def get_subs_date(shopify_id)
     #Get alt_title
     current_month = Date.today.strftime("%B")
@@ -110,8 +193,7 @@ helpers do
          end
      end
      orig_sub_date ="\"#{orig_sub_date}\""
-     orig_sub_date
-
+     
   end
 
 end
