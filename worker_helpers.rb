@@ -82,7 +82,8 @@ module FixMonth
 
   def check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date, headers)
       my_sub_date = DateTime.parse(orig_sub_date)
-      proposed_date = DateTime.parse(new_date)
+      #proposed_date = DateTime.parse(new_date)
+      proposed_date = DateTime.strptime(new_date, "%m-%d-%Y")
       proposed_month = proposed_date.strftime("%B")
       if proposed_month == current_month
         puts "changing shipment date in this month"
