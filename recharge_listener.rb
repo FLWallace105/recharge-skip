@@ -27,8 +27,8 @@ configure do
             "Content-Type" =>"application/json"
         }
   
-  #uri2 = URI.parse(ENV["REDIS_URL"])
-  #REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+  uri2 = URI.parse(ENV["REDIS_URL"])
+  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
   end
 
@@ -47,7 +47,7 @@ get '/recharge' do
   action = params['action']
 
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
   Resque.enqueue(SkipMonth, skip_month_data)
   
@@ -68,7 +68,7 @@ get '/recharge-new-ship-date' do
   choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date, 'action' => action}
   
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   Resque.enqueue(ChooseDate, choosedate_data)
 
 end
@@ -85,7 +85,7 @@ get '/recharge-unskip' do
   unskip_data = {"shopify_id" => shopify_id, "action" => action }
 
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   Resque.enqueue(UnSkip, unskip_data)
 
 end
@@ -125,7 +125,7 @@ get '/upsells' do
   action = params['endpoint_info']
   upsell_data = {"shopify_id" => shopify_id, "action" => action}
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   Resque.enqueue(Upsell, upsell_data)
 
 end
