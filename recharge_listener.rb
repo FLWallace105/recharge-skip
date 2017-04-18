@@ -110,6 +110,25 @@ get '/customer_size_returner' do
 
 end
 
+get '/upsells' do
+  content_type :application_json
+  customer_data = {"return_value" => "hi_there"}
+  customer_data = customer_data.to_json
+  send_back = "myUpsells(#{customer_data})"
+  body send_back
+  puts send_back
+  
+ 
+  puts "Doing upsell task"
+  puts params.inspect
+  shopify_id = params['shopify_id']
+  action = params['endpoint_info']
+  upsell_data = {"shopify_id" => shopify_id, "action" => action}
+  #stuff below for Heroku 
+  #Resque.redis = REDIS
+  Resque.enqueue(Upsell, upsell_data)
+
+end
 
 
 
@@ -197,6 +216,30 @@ helpers do
   end
 
 end
+
+class Upsell
+  extend FixMonth
+  @queue = "upsell"
+  def self.perform(upsell_data)
+    puts "Unpacking request data"
+    puts upsell_data.inspect
+    action = upsell_data['action']
+    shopify_id = upsell_data['shopify_id']
+    if action == 'cust_upsell'
+      puts "processing customer upsell products"
+      get_info = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+        my_info = get_info.parsed_response
+        puts my_info.inspect
+        cust_id = my_info['customers'][0]['id']
+        puts cust_id.inspect
+
+    else
+      puts "Wrong action received from browser: #{action}, action must be cust_upsell ."
+    end
+
+  end
+end
+
 
 class UnSkip
   extend FixMonth
