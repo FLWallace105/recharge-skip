@@ -115,4 +115,30 @@ module FixMonth
 
   end
 
+
+  def request_recharge_id(shopify_id, my_get_header)
+      get_info = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
+      my_info = get_info.parsed_response
+      puts my_info.inspect
+      cust_id = my_info['customers'][0]['id']
+      puts cust_id.inspect
+      sleep 3
+      return cust_id
+  end
+
+  def request_address_id(cust_id, my_get_header)
+    customer_addresses = HTTParty.get("https://api.rechargeapps.com/customers/#{cust_id}/addresses", :headers => my_get_header)
+    my_addresses = customer_addresses.parsed_response
+    puts my_addresses.inspect
+    address_id = my_addresses['addresses'][0]['id']
+    puts "address_id = #{address_id}"
+    sleep 3
+    return address_id
+  end
+
+  def check_for_duplicate_subscription()
+
+  
+  end
+
 end

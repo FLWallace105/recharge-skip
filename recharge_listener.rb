@@ -27,8 +27,8 @@ configure do
             "Content-Type" =>"application/json"
         }
   
-  uri2 = URI.parse(ENV["REDIS_URL"])
-  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+  #uri2 = URI.parse(ENV["REDIS_URL"])
+  #REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
   end
 
@@ -47,7 +47,7 @@ get '/recharge' do
   action = params['action']
 
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
   Resque.enqueue(SkipMonth, skip_month_data)
   
@@ -68,7 +68,7 @@ get '/recharge-new-ship-date' do
   choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date, 'action' => action}
   
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   Resque.enqueue(ChooseDate, choosedate_data)
 
 end
@@ -85,7 +85,7 @@ get '/recharge-unskip' do
   unskip_data = {"shopify_id" => shopify_id, "action" => action }
 
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   Resque.enqueue(UnSkip, unskip_data)
 
 end
@@ -123,9 +123,16 @@ get '/upsells' do
   puts params.inspect
   shopify_id = params['shopify_id']
   action = params['endpoint_info']
-  upsell_data = {"shopify_id" => shopify_id, "action" => action}
+  next_charge = params['next_charge']
+  product_title = params['product_title']
+  price = params['price']
+  quantity = params['quantity']
+  shopify_variant_id = params['shopify_variant_id']
+  size = params['size']
+  sku = params['SKU']
+  upsell_data = {"shopify_id" => shopify_id, "action" => action, "next_charge" => next_charge, "product_title" => product_title, "price" => price, "quantity" => quantity, "sku" => sku, "shopify_variant_id" => shopify_variant_id, "size" => size}
   #stuff below for Heroku 
-  Resque.redis = REDIS
+  #Resque.redis = REDIS
   Resque.enqueue(Upsell, upsell_data)
 
 end
@@ -225,13 +232,57 @@ class Upsell
     puts upsell_data.inspect
     action = upsell_data['action']
     shopify_id = upsell_data['shopify_id']
+    product_title = upsell_data['product_title']
+    
+    next_charge = upsell_data['next_charge']
+    price = upsell_data['price']
+    quantity = upsell_data['quantity']
+    sku = upsell_data['sku'].to_i
+    shopify_variant_id = upsell_data['shopify_variant_id'].to_i
+    size = upsell_data['size']
+    #create properties array here, be CAREFUL MUST BE KEY-VALUE pairs
+    property_json = {"name" => "size", "value" => "S"}
+    properties = [property_json]
+    
+    
     if action == 'cust_upsell'
-      puts "processing customer upsell products"
-      get_info = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
-        my_info = get_info.parsed_response
-        puts my_info.inspect
-        cust_id = my_info['customers'][0]['id']
-        puts cust_id.inspect
+        puts "processing customer upsell products" 
+        cust_id = request_recharge_id(shopify_id, $my_get_header)
+        address_id = request_address_id(cust_id, $my_get_header)
+        #puts product_title, next_charge, price, quantity, shopify_variant_id, size
+        #redo date into something Recharge can handle.
+        next_charge_scheduled_at_date = DateTime.strptime(next_charge, "%m-%d-%Y")
+        next_charge_scheduled = next_charge_scheduled_at_date.strftime("%Y-%m-%d")
+        #next_charge_scheduled = "#{next_charge_scheduled}"
+        data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price, "quantity" => quantity, "shopify_variant_id" => shopify_variant_id, "sku" => sku, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => properties}.to_json
+        puts data_send_to_recharge
+        
+        #puts $my_change_charge_header
+        #Before sending, request all subscriptions and avoid submitting duplicates.
+        all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+        #puts all_subscriptions_customer.inspect
+        submit_order_flag = true
+
+        all_subscriptions_customer.parsed_response['subscriptions'].each do |mysub|
+           #puts mysub.inspect
+           local_variant_id = mysub['shopify_variant_id']
+           local_status = mysub['status']
+           local_sku = mysub['sku']
+           puts "variant_id = #{local_variant_id}, status=#{local_status}, sku=#{local_sku}"
+           if shopify_variant_id == local_variant_id && local_status == "ACTIVE"
+              submit_order_flag = false
+             end
+          end
+
+        if submit_order_flag
+          sleep 3
+          puts "Submitting order as a new upsell subscription"
+          send_upsell_to_recharge = HTTParty.post("https://api.rechargeapps.com/subscriptions", :headers => $my_change_charge_header, :body => data_send_to_recharge)
+          puts send_upsell_to_recharge.inspect
+        else
+          puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{shopify_variant_id}."
+        end
+
 
     else
       puts "Wrong action received from browser: #{action}, action must be cust_upsell ."
