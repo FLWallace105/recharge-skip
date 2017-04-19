@@ -136,9 +136,22 @@ module FixMonth
     return address_id
   end
 
-  def check_for_duplicate_subscription()
+  def check_for_duplicate_subscription(shopify_id, shopify_variant_id, my_get_header)
+    all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
+    #puts all_subscriptions_customer.inspect
+    submit_order_flag = true
 
-  
+    all_subscriptions_customer.parsed_response['subscriptions'].each do |mysub|
+        #puts mysub.inspect
+        local_variant_id = mysub['shopify_variant_id']
+        local_status = mysub['status']
+        local_sku = mysub['sku']
+        puts "variant_id = #{local_variant_id}, status=#{local_status}, sku=#{local_sku}"
+        if shopify_variant_id == local_variant_id && local_status == "ACTIVE"
+            submit_order_flag = false
+            end
+      end
+      return submit_order_flag
   end
 
 end

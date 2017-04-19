@@ -257,22 +257,12 @@ class Upsell
         data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price, "quantity" => quantity, "shopify_variant_id" => shopify_variant_id, "sku" => sku, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => properties}.to_json
         puts data_send_to_recharge
         
+
         #puts $my_change_charge_header
         #Before sending, request all subscriptions and avoid submitting duplicates.
-        all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
-        #puts all_subscriptions_customer.inspect
-        submit_order_flag = true
-
-        all_subscriptions_customer.parsed_response['subscriptions'].each do |mysub|
-           #puts mysub.inspect
-           local_variant_id = mysub['shopify_variant_id']
-           local_status = mysub['status']
-           local_sku = mysub['sku']
-           puts "variant_id = #{local_variant_id}, status=#{local_status}, sku=#{local_sku}"
-           if shopify_variant_id == local_variant_id && local_status == "ACTIVE"
-              submit_order_flag = false
-             end
-          end
+        
+        
+        submit_order_flag = check_for_duplicate_subscription(shopify_id, shopify_variant_id, $my_get_header)  
 
         if submit_order_flag
           sleep 3
