@@ -136,21 +136,30 @@ module FixMonth
     return address_id
   end
 
-  def check_for_duplicate_subscription(shopify_id, shopify_variant_id, my_get_header)
+  def check_for_duplicate_subscription(shopify_id, shopify_variant_id, product_title, my_get_header)
     all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
     #puts all_subscriptions_customer.inspect
+    puts "Checking for duplicates ..."
     submit_order_flag = true
+    puts "We want to avoid duplicate orders for ... #{product_title}, variant_id #{shopify_variant_id}"
 
     all_subscriptions_customer.parsed_response['subscriptions'].each do |mysub|
         #puts mysub.inspect
         local_variant_id = mysub['shopify_variant_id']
         local_status = mysub['status']
-        local_sku = mysub['sku']
-        puts "variant_id = #{local_variant_id}, status=#{local_status}, sku=#{local_sku}"
-        if shopify_variant_id == local_variant_id && local_status == "ACTIVE"
-            submit_order_flag = false
-            end
+        #local_sku = mysub['sku']
+        local_product_title = mysub['product_title']
+        #puts "Local Title = #{local_product_title}"
+        puts "variant_id = #{local_variant_id}, status=#{local_status}, local_title=#{local_product_title}"
+        if shopify_variant_id.to_s == local_variant_id.to_s && local_status == "ACTIVE"  
+          puts "Sorry, duplicate order can't add this!"
+          submit_order_flag = false
+        elsif local_product_title == product_title && local_status == "ACTIVE"
+          puts "Sorry, duplicate order for title, looks like you already added a variant with this title!"
+          submit_order_flag = false
+          end
       end
+      
       return submit_order_flag
   end
 

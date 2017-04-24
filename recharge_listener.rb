@@ -111,29 +111,33 @@ get '/customer_size_returner' do
 end
 
 get '/upsells' do
+  puts "Doing upsell task"
+  puts params.inspect
+  
+
   content_type :application_json
   customer_data = {"return_value" => "hi_there"}
   customer_data = customer_data.to_json
   send_back = "myUpsells(#{customer_data})"
   body send_back
   puts send_back
+  Resque.enqueue(UpsellProcess, params)
   
- 
-  puts "Doing upsell task"
-  puts params.inspect
-  shopify_id = params['shopify_id']
-  action = params['endpoint_info']
-  next_charge = params['next_charge']
-  product_title = params['product_title']
-  price = params['price']
-  quantity = params['quantity']
-  shopify_variant_id = params['shopify_variant_id']
-  size = params['size']
-  sku = params['SKU']
-  upsell_data = {"shopify_id" => shopify_id, "action" => action, "next_charge" => next_charge, "product_title" => product_title, "price" => price, "quantity" => quantity, "sku" => sku, "shopify_variant_id" => shopify_variant_id, "size" => size}
+  #shopify_id = params['shopify_id']
+  #action = params['endpoint_info']
+  #next_charge = params['next_charge']
+  #product_info = params['product_info']
+  #puts product_info.inspect
+  #product_title = params['product_title']
+  #price = params['price']
+  #quantity = params['quantity']
+  #shopify_variant_id = params['shopify_variant_id']
+  #size = params['size']
+  #sku = params['SKU']
+  #upsell_data = {"shopify_id" => shopify_id, "action" => action, "next_charge" => next_charge, "product_title" => product_title, "price" => price, "quantity" => quantity, "sku" => sku, "shopify_variant_id" => shopify_variant_id, "size" => size}
   #stuff below for Heroku 
   #Resque.redis = REDIS
-  Resque.enqueue(Upsell, upsell_data)
+  #sResque.enqueue(Upsell, upsell_data)
 
 end
 
@@ -224,6 +228,72 @@ helpers do
 
 end
 
+class UpsellProcess
+  extend FixMonth
+  @queue = "upsellprocess"
+  def self.perform(upsellprocess_data)
+    puts "Unpacking upsellprocess_data:"
+    puts upsellprocess_data.inspect
+    my_action = upsellprocess_data['endpoint_info']
+    #check for correct action and end if incorrect
+    if my_action == "cust_upsell"
+      #go ahead and do stuff
+      puts "processing this order"
+      shopify_id = upsellprocess_data['shopify_id']
+      next_charge = upsellprocess_data['next_charge']
+      product_info = upsellprocess_data['product_info']
+      puts "processing customer upsell products" 
+      cust_id = request_recharge_id(shopify_id, $my_get_header)
+      address_id = request_address_id(cust_id, $my_get_header)
+      #puts product_info.inspect
+      my_hash = {}
+      my_hash = product_info
+      puts my_hash.inspect
+      my_hash.each do |key, value|
+        puts "key = #{key}, value = #{value}"
+        product_title = value['product_title']
+        quantity = value['quantity']
+        variant_id_array = value['price'].split('-')
+        variant_id = variant_id_array[0]
+        price = variant_id_array[1]
+        price_float = (price.to_i/100).to_f
+        puts "#{product_title}, #{variant_id}, #{price_float}"
+        
+        #puts product_title, next_charge, price, quantity, shopify_variant_id, size
+        #redo date into something Recharge can handle.
+        next_charge_scheduled_at_date = DateTime.strptime(next_charge, "%m-%d-%Y")
+        next_charge_scheduled = next_charge_scheduled_at_date.strftime("%Y-%m-%d")
+        #next_charge_scheduled = "#{next_charge_scheduled}"
+        puts "#{address_id}, #{next_charge_scheduled}, #{product_title}, #{price_float}, #{quantity}, #{variant_id}"
+        data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price_float, "quantity" => quantity, "shopify_variant_id" => variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
+        puts data_send_to_recharge
+        puts "----"
+        submit_order_flag = check_for_duplicate_subscription(shopify_id, variant_id, product_title, $my_get_header)  
+        puts "submit_order_flag = #{submit_order_flag}"
+
+        if submit_order_flag == false
+          puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
+        else
+          puts "OK, submitting order"
+          sleep 3
+          puts "Submitting order as a new upsell subscription"
+          send_upsell_to_recharge = HTTParty.post("https://api.rechargeapps.com/subscriptions", :headers => $my_change_charge_header, :body => data_send_to_recharge)
+          puts send_upsell_to_recharge.inspect
+        end
+
+        
+
+      end
+
+    else
+      #don't do anything, incorrect parameters
+      puts "We can't do anything: endpoint_info = #{my_action}"
+    end
+
+  end
+end
+
+
 class Upsell
   extend FixMonth
   @queue = "upsell"
@@ -240,7 +310,7 @@ class Upsell
     sku = upsell_data['sku'].to_i
     shopify_variant_id = upsell_data['shopify_variant_id'].to_i
     size = upsell_data['size']
-    #create properties array here, be CAREFUL MUST BE KEY-VALUE pairs
+    #create properties array here, be CAREFUL MUST BE NAME-VALUE pairs
     property_json = {"name" => "size", "value" => "S"}
     properties = [property_json]
     
