@@ -17,7 +17,8 @@ configure do
 
   mime_type :application_javascript, 'application/javascript'
   mime_type :application_json, 'application/json'
-  $recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
+  #$recharge_access_token = ENV['RECHARGE_ACCESS_TOKEN']
+  $recharge_access_token = ENV['RECHARGE_STAGING_ACCESS_TOKEN']
   $my_get_header =  {
             "X-Recharge-Access-Token" => "#{$recharge_access_token}"
         }
@@ -465,7 +466,7 @@ class SkipMonth
       alt_title = "#{current_month} VIP Box"
       orig_sub_date = ""
       my_subscription_id = ''
-
+      puts "Got Here to request data from Recharge."
       my_subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
       orig_sub_date = my_subscriber_data['orig_sub_date']
       my_subscription_id = my_subscriber_data['my_subscription_id']
