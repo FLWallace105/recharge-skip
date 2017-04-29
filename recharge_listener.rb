@@ -48,7 +48,7 @@ get '/recharge' do
   action = params['action']
 
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
   Resque.enqueue(SkipMonth, skip_month_data)
   
@@ -69,7 +69,7 @@ get '/recharge-new-ship-date' do
   choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date, 'action' => action}
   
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   Resque.enqueue(ChooseDate, choosedate_data)
 
 end
@@ -86,7 +86,7 @@ get '/recharge-unskip' do
   unskip_data = {"shopify_id" => shopify_id, "action" => action }
 
   #stuff below for Heroku 
-  #Resque.redis = REDIS
+  Resque.redis = REDIS
   Resque.enqueue(UnSkip, unskip_data)
 
 end
@@ -122,8 +122,20 @@ get '/upsells' do
   send_back = "myUpsells(#{customer_data})"
   body send_back
   puts send_back
+  #stuff below for Heroku 
+  Resque.redis = REDIS
   Resque.enqueue(UpsellProcess, params)
   
+end
+
+
+get '/change_cust_size' do
+  puts "Doing changing customer sizes"
+  puts params.inspect
+  #stuff below for Heroku 
+  Resque.redis = REDIS
+  Resque.enqueue(ChangeCustSizes, params)
+
 end
 
 
@@ -212,6 +224,62 @@ helpers do
   end
 
 end
+
+class ChangeCustSizes
+  extend FixMonth
+  @queue = "changecustsizes"
+  def self.perform(cust_sizes_data)
+    puts "We are Processing the Customer Size Data"
+    puts cust_sizes_data.inspect
+    my_action = cust_sizes_data['action']
+    my_shopify_id = cust_sizes_data['shopify_id']
+    cust_sizes_hash = cust_sizes_data['cust_sizes']
+    puts "my_action = #{my_action}"
+    if my_action == "change_cust_sizes"
+      puts "my_shopify_id = #{my_shopify_id}"
+      puts "cust_sizes_hash = #{cust_sizes_hash.inspect}"
+      bottom_sizes = cust_sizes_hash['bottom_size']
+      #puts "bottom_sizes = #{bottom_sizes}"
+      bottom_sizes = bottom_sizes.gsub(/\s+/, " ").strip
+      top_sizes = cust_sizes_hash['top_size']
+      top_sizes = top_sizes.gsub(/\s+/, " ").strip
+      bra_sizes = cust_sizes_hash['bra_size']
+      bra_sizes = bra_sizes.gsub(/\s+/, " ").strip
+
+      puts "Cust Sizes now bottom=#{bottom_sizes}, top=#{top_sizes}, bra=#{bra_sizes}"
+      #cust_id = request_recharge_id(my_shopify_id, $my_get_header)
+      #puts "cust_id =#{cust_id}"
+      #puts "sleeping 3"
+      #sleep 3
+      #address_id = request_address_id(cust_id, $my_get_header)
+      #puts "sleeping 3 again"
+      #sleep 3
+
+      current_month = Date.today.strftime("%B")
+      alt_title = "#{current_month} VIP Box"
+      
+      my_subscription_id = ''
+
+      my_subscriber_data = request_subscriber_id(my_shopify_id, $my_get_header, alt_title)
+      
+      my_subscription_id = my_subscriber_data['my_subscription_id']
+      puts "My Subscriber ID = #{my_subscription_id}"
+      my_data_recharge = {"properties" => [{"name" => "leggings", "value" => bottom_sizes }, {"name" => "sports-bra", "value" =>bra_sizes }, {"name" => "tops", "value" => top_sizes }]}.to_json
+      puts my_data_recharge
+      send_size_change_recharge = HTTParty.put("https://api.rechargeapps.com/subscriptions/#{my_subscription_id}", :headers => $my_change_charge_header, :body => my_data_recharge)
+      puts send_size_change_recharge
+
+    else
+      puts "Action is #{my_action}"
+      puts "We can't do anything, must be change_cust_sizes"
+
+      end
+    
+  end
+
+end
+
+
 
 class UpsellProcess
   extend FixMonth
