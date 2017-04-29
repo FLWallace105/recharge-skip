@@ -28,8 +28,8 @@ configure do
             "Content-Type" =>"application/json"
         }
   
-  #uri2 = URI.parse(ENV["REDIS_URL"])
-  #REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+  uri2 = URI.parse(ENV["REDIS_URL"])
+  REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
   end
 
