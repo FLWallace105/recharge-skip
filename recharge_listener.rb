@@ -28,6 +28,7 @@ configure do
             "Content-Type" =>"application/json"
         }
   
+  #uncomment below for push to Heroku.
   uri2 = URI.parse(ENV["REDIS_URL"])
   REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
   
