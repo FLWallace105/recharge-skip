@@ -215,6 +215,8 @@ class MyParamHandler
     #Get the Alternate title, pattern April VIP Box etc.
     current_month = Date.today.strftime("%B")
     alt_title = "#{current_month} VIP Box"
+    alt_3month_title = "VIP 3 Monthly Box"
+    alt_month_plain_title = "#{current_month} Box"
 
     #Define scope of subscription_id to use later
     subscription_id = ""
@@ -230,7 +232,7 @@ class MyParamHandler
         puts line.inspect
         
       
-        if line['title'] == "Monthly Box" || line['title'] == alt_title
+        if line['title'] == "Monthly Box" || line['title'] == alt_title || line['title'] == alt_3month_title || line['title'] == alt_month_plain_title
           subscription_id = line['subscription_id']
           puts "Found Subscription id = #{subscription_id}"
           #Here we skip the subscription to the next month
