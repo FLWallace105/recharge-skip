@@ -556,19 +556,50 @@ class ChooseDate
       alt_title = "#{current_month} VIP Box"
       orig_sub_date = ""
       my_subscription_id = ''
-      #puts "#{shopify_id}, #{$my_get_header}, #{alt_title}"
-      subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
-      my_subscription_id = subscriber_data['my_subscription_id']
-      orig_sub_date = subscriber_data['orig_sub_date']
-      puts "Subscription_id = #{my_subscription_id}, original_subscription_date = #{orig_sub_date}"
-      puts "Must sleep 3 seconds"
+      plain_title = "#{current_month} Box"
+      alt_title = "#{current_month} VIP Box"
+      three_month_box = "VIP 3 Monthly Box"
+      old_three_month_box = "VIP 3 Month Box"
+      orig_sub_date = ""
+      my_subscription_id = ''
+      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+      mysubs = get_sub_info.parsed_response
+      puts "Must sleep for 3 seconds"
       sleep 3
-      my_customer_email = request_customer_email(shopify_id, $my_get_header)
+      subsonly = mysubs['subscriptions']
+      subsonly.each do |subs|
+        if subs['status'] != "CANCELLED"
+            product_title = subs['product_title']
+            if product_title == "VIP 3 Monthly Box" || product_title == "Monthly Box" || product_title ==   alt_title || product_title = plain_title || product_title == old_three_month_box
+              puts subs.inspect
+              my_subscription_id = subs['id']
+              orig_sub_date = subs['next_charge_scheduled_at']
+              puts "#{my_subscription_id}, #{orig_sub_date}"
+              check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
+              end
+          end
+        end
 
-      puts "My customer_email = #{my_customer_email}" 
-      puts "Must sleep for 3 secs again"
-      sleep 3
-      check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
+
+
+
+
+
+
+      #puts "#{shopify_id}, #{$my_get_header}, #{alt_title}"
+      #subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
+      #my_subscription_id = subscriber_data['my_subscription_id']
+      #orig_sub_date = subscriber_data['orig_sub_date']
+      #puts "Subscription_id = #{my_subscription_id}, original_subscription_date = #{orig_sub_date}"
+      #puts "Must sleep 3 seconds"
+      #sleep 3
+      #my_customer_email = request_customer_email(shopify_id, $my_get_header)
+
+      #puts "My customer_email = #{my_customer_email}" 
+      #puts "Must sleep for 3 secs again"
+      #sleep 3
+      #check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
+
     else
       puts "Action must be change_date, and action is #{action} so we can't do anything."
     end     
@@ -588,6 +619,7 @@ class SkipMonth
       plain_title = "#{current_month} Box"
       alt_title = "#{current_month} VIP Box"
       three_month_box = "VIP 3 Monthly Box"
+      old_three_month_box = "VIP 3 Month Box"
       orig_sub_date = ""
       my_subscription_id = ''
       puts "Got Here to request data from Recharge."
@@ -601,7 +633,7 @@ class SkipMonth
         
         if subs['status'] != "CANCELLED"
             product_title = subs['product_title']
-            if product_title == "VIP 3 Monthly Box" || product_title == "Monthly Box" || product_title ==   alt_title || product_title = plain_title
+            if product_title == "VIP 3 Monthly Box" || product_title == "Monthly Box" || product_title ==   alt_title || product_title = plain_title || product_title == old_three_month_box
               puts subs.inspect
               my_subscription_id = subs['id']
               orig_sub_date = subs['next_charge_scheduled_at']
