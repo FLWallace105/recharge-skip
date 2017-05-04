@@ -129,6 +129,22 @@ get '/upsells' do
   
 end
 
+get '/upsell_remove' do
+  puts "Doing removing Upsell products from box subscription"
+  puts params.inspect
+  content_type :application_json
+  customer_data = {"return_value" => "yeah_ok_removing_dude"}
+  customer_data = customer_data.to_json
+  send_back = "myUpsellsRemove(#{customer_data})"
+  body send_back
+  puts send_back
+
+  Resque.redis = REDIS
+  Resque.enqueue(UpsellRemove, params)
+
+  
+end
+
 
 get '/change_cust_size' do
   puts "Doing changing customer sizes"
@@ -222,6 +238,54 @@ helpers do
      end
      orig_sub_date ="\"#{orig_sub_date}\""
      
+  end
+
+end
+
+class UpsellRemove
+  extend FixMonth
+  @queue = "upsellremove"
+  def self.perform(remove_add_on_data)
+    puts "Now removing add on to box ..."
+    puts remove_add_on_data.inspect
+    endpoint_info = remove_add_on_data['endpoint_info']
+    if endpoint_info == "upsell_remove"
+      product_title = remove_add_on_data['shopify_product_title']
+      shopify_id = remove_add_on_data['shopify_id']
+      product_id = remove_add_on_data['shopify_product_id']
+      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+      puts "Must sleep 3 seconds"
+      sleep 3
+      subscriber_stuff = get_sub_info.parsed_response
+      #puts subscriber_stuff.inspect
+      subscriptions = subscriber_stuff['subscriptions']
+      #puts subscriptions.inspect
+      subscriptions.each do |mysub|
+        if mysub['status'] != "CANCELLED" && mysub['shopify_product_id'].to_i == product_id.to_i
+          puts "-----------"
+          puts mysub.inspect
+          puts "Product Title sent = #{product_title}"
+          puts "Product_id sent = #{product_id}"
+          puts "-----------"
+          cancel_subscription_id = mysub['id']
+          puts "Canceling subscription #{cancel_subscription_id}"
+          #-- now cancel the subscription.
+          #POST /subscriptions/<subscription_id>/cancel
+          my_data = {"cancellation_reason" => "Customer Through API/Website"}.to_json
+          my_cancel = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{cancel_subscription_id}/cancel", :headers => $my_change_charge_header, :body => my_data)
+          my_response = my_cancel.parsed_response
+          puts "Recharges sent back: #{my_response}"
+          puts "Must Sleep now 3 seconds"
+          sleep 3
+
+          end
+        end
+
+    else
+      puts "We can't do anything, the endpoint_info is #{endpoint_info} not upsell_remove"
+      puts "Sorry but rules are rules."
+    end
+
   end
 
 end
@@ -521,38 +585,45 @@ class SkipMonth
     shopify_id = skip_month_data['shopify_id']
     if action == 'skip_month'
       current_month = Date.today.strftime("%B")
+      plain_title = "#{current_month} Box"
       alt_title = "#{current_month} VIP Box"
+      three_month_box = "VIP 3 Monthly Box"
       orig_sub_date = ""
       my_subscription_id = ''
       puts "Got Here to request data from Recharge."
-      my_subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
-      orig_sub_date = my_subscriber_data['orig_sub_date']
-      my_subscription_id = my_subscriber_data['my_subscription_id']
-      puts "My Subscriber ID = #{my_subscription_id}, my original date = #{orig_sub_date}"
 
-
-     puts "Must sleep for 3 secs"
-     sleep 3
-     
-     my_customer_email = request_customer_email(shopify_id, $my_get_header)
-
-     puts "My customer_email = #{my_customer_email}" 
-     puts "Must sleep for 3 secs again"
-     sleep 3
-     #Now check to see if the subscriber can skip to next month, i.e. their current
-     #next_subscription date is this month. If not, do nothing.
-     my_sub_date = DateTime.parse(orig_sub_date)  
-     subscriber_actual_next_charge_month = my_sub_date.strftime("%B")
-     puts "Subscriber next charge month = #{subscriber_actual_next_charge_month}"
-     puts "Current month is #{current_month}"
-     if current_month == subscriber_actual_next_charge_month 
-        puts "Skipping charge to next month"
-        skip_to_next_month(my_subscription_id, my_sub_date, $my_change_charge_header)
+      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+      mysubs = get_sub_info.parsed_response
+      puts "Must sleep for 3 seconds"
+      sleep 3
+      subsonly = mysubs['subscriptions']
+      subsonly.each do |subs|
         
-     else
-        puts "We can't do anything, the next_charge_month is #{subscriber_actual_next_charge_month} which is not the current month -- #{current_month}"
-     end 
+        if subs['status'] != "CANCELLED"
+            product_title = subs['product_title']
+            if product_title == "VIP 3 Monthly Box" || product_title == "Monthly Box" || product_title ==   alt_title || product_title = plain_title
+              puts subs.inspect
+              my_subscription_id = subs['id']
+              orig_sub_date = subs['next_charge_scheduled_at']
+              puts "#{my_subscription_id}, #{orig_sub_date}"
+              #Now check to see if the subscriber can skip to next month, i.e. their current
+              #next_subscription date is this month. If not, do nothing.
+              my_sub_date = DateTime.parse(orig_sub_date)  
+              subscriber_actual_next_charge_month = my_sub_date.strftime("%B")
+              puts "Subscriber next charge month = #{subscriber_actual_next_charge_month}"
+              puts "Current month is #{current_month}"
+              if current_month == subscriber_actual_next_charge_month 
+                 puts "Skipping charge to next month"
+                 skip_to_next_month(my_subscription_id, my_sub_date, $my_change_charge_header)
+        
+              else
+                 puts "We can't do anything, the next_charge_month is #{subscriber_actual_next_charge_month} which is not the current month -- #{current_month}"
+              end
 
+
+            end
+          end
+        end
 
     else
       puts "We can't do anything, action is #{action} which is not skip_month dude!"
