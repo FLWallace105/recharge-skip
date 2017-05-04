@@ -216,6 +216,7 @@ class MyParamHandler
     current_month = Date.today.strftime("%B")
     alt_title = "#{current_month} VIP Box"
     alt_3month_title = "VIP 3 Monthly Box"
+    old_3month_box = "VIP 3 Month Box"
     alt_month_plain_title = "#{current_month} Box"
 
     #Define scope of subscription_id to use later
@@ -232,7 +233,7 @@ class MyParamHandler
         puts line.inspect
         
       
-        if line['title'] == "Monthly Box" || line['title'] == alt_title || line['title'] == alt_3month_title || line['title'] == alt_month_plain_title
+        if line['title'] == "Monthly Box" || line['title'] == alt_title || line['title'] == alt_3month_title || line['title'] == alt_month_plain_title || line['title'] == old_3month_box
           subscription_id = line['subscription_id']
           puts "Found Subscription id = #{subscription_id}"
           #Here we skip the subscription to the next month
