@@ -3,6 +3,8 @@ require 'sinatra'
 require 'httparty'
 require 'dotenv'
 require "resque"
+require 'shopify_api'
+
 require_relative 'worker_helpers'
 
 class SkipIt < Sinatra::Base
@@ -31,6 +33,14 @@ configure do
   #uncomment below for push to Heroku.
   uri2 = URI.parse(ENV["REDIS_URL"])
   REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
+
+  #SHOPIFY env variables
+  $apikey = ENV['ELLIE_STAGING_API_KEY']
+  $password = ENV['ELLIE_STAGING_PASSWORD']
+  $shopname = ENV['SHOPNAME']
+  $shopify_wait = ENV['SHOPIFY_SLEEP_TIME']
+  
+  
   
   end
 
@@ -366,20 +376,32 @@ class UpsellProcess
       cust_id = request_recharge_id(shopify_id, $my_get_header)
       puts "cust_id =#{cust_id}"
       address_id = request_address_id(cust_id, $my_get_header)
-      #must cut up variant_id into pattern "product_title-shopify_variant_id-price"
-      #and split on "-"
-      my_array = Array.new
-      my_array = variant_id.split('-')
+      #New code 5-8-17: take variant_id and request to Shopify
+      #Product_title, product_id, price
+      #puts "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      #puts "OK HERE"
+      my_variant = ShopifyAPI::Variant.find(variant_id)
+      puts "found variant #{my_variant.id}"
+      my_raw_price = my_variant.price.to_f
+      puts "my_raw_price = #{my_raw_price}"
+      my_true_variant_id = variant_id.to_i
+      true_price = my_raw_price
+      my_product_id = my_variant.product_id.to_i
+      my_product = ShopifyAPI::Product.find(my_product_id)
+      my_product_title = my_product.title
+      puts "Found #{my_product_title}"
+      #puts ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      my_raw_header = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      puts "Shopify Header Info: #{my_raw_header}"
+      my_array = my_raw_header.split('/')
+      my_result = my_array[0].to_i/my_array[1].to_f
+      if my_result > 0.75
+        sleep $shopify_wait
+      end
+
       
-      my_product_title = my_array[0]
-      #puts "my_product_title =#{my_product_title}"
-      my_true_variant_id = my_array[1].to_i
-      #puts "my_true_variant_id = #{my_true_variant_id}"
-      my_raw_price = my_array[2]
-      #puts "my_raw_price=#{my_raw_price}"
-      true_price = (my_raw_price.to_i/100).to_f
-      #puts "true_price = #{true_price}"
-      my_product_id = my_array[3].to_i
+
       puts "my_product_title=#{my_product_title}, my_true_variant_id=#{my_true_variant_id}, true_price=#{true_price}, my_product_id = #{my_product_id}"
       #hard-code quantity=1 and today's date for next-charge
       quantity = 1
@@ -387,7 +409,7 @@ class UpsellProcess
       
       my_charge_date = tomorrow.strftime("%Y-%m-%d")
 
-      data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => my_charge_date, "product_title" => my_product_title, "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
+      data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => my_charge_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
       puts data_send_to_recharge
       #data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price_float, "quantity" => quantity, "shopify_variant_id" => variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
       #puts data_send_to_recharge
