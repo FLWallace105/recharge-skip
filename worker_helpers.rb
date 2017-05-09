@@ -179,7 +179,15 @@ module FixMonth
           if my_charge_date < today_date 
             puts "Box has already shipped, sorry can't add ... charge date is #{local_charge_date.inspect}"
             submit_order_flag = false
-            end
+          end
+          #Put check in here to see if the box has been skipped next month, then don't create add ons
+          charge_date_month = my_charge_date.strftime("%B")
+          if charge_date_month != current_month
+            puts "Can't add the upsell -- Customer skipped month to #{charge_date_month}"
+            submit_order_flag = false
+          end
+
+
         end
       end
       my_return_data = {"process_order" => submit_order_flag, "charge_date" => my_return_date}
