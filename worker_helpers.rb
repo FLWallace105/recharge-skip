@@ -133,6 +133,7 @@ module FixMonth
     puts my_addresses.inspect
     address_id = my_addresses['addresses'][0]['id']
     puts "address_id = #{address_id}"
+    puts "Must sleep 3 seconds"
     sleep 3
     return address_id
   end
@@ -140,16 +141,24 @@ module FixMonth
   def check_for_duplicate_subscription(shopify_id, shopify_variant_id, product_title, my_get_header)
     all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
     #puts all_subscriptions_customer.inspect
+    my_return_date = Date.today + 1
     puts "Checking for duplicates ..."
-    submit_order_flag = true
+    submit_order_flag = false
     puts "We want to avoid duplicate orders for ... #{product_title}, variant_id #{shopify_variant_id}"
 
     all_subscriptions_customer.parsed_response['subscriptions'].each do |mysub|
-        #puts mysub.inspect
+        puts mysub.inspect
         local_variant_id = mysub['shopify_variant_id']
         local_status = mysub['status']
         #local_sku = mysub['sku']
         local_product_title = mysub['product_title']
+        today_date = Date.today + 3
+        
+        current_month = Date.today.strftime("%B")
+        alt_vip_title = "#{current_month} VIP Box"
+        alt_title = "#{current_month} Box"
+        three_month_box = "VIP 3 Monthly Box"
+        old_three_month_box = "VIP 3 Month Box"
         #puts "Local Title = #{local_product_title}"
         puts "variant_id = #{local_variant_id}, status=#{local_status}, local_title=#{local_product_title}"
         if shopify_variant_id.to_s == local_variant_id.to_s && local_status == "ACTIVE"  
@@ -158,10 +167,23 @@ module FixMonth
         elsif local_product_title == product_title && local_status == "ACTIVE"
           puts "Sorry, duplicate order for title, looks like you already added a variant with this title!"
           submit_order_flag = false
-          end
+        #Check to see if ship date for a Monthly Box or some variant of Monthly Box has passed
+      elsif (local_product_title == "Monthly Box" || local_product_title == alt_vip_title || local_product_title == alt_title || local_product_title == three_month_box || local_product_title == old_three_month_box) && local_status == "ACTIVE"
+          #Only if they have a Monthly box can they add on an order duh!
+          submit_order_flag = true
+          local_charge_date = mysub['next_charge_scheduled_at']
+          puts "local_charge_date = #{local_charge_date}"
+          my_charge_date = DateTime.parse(local_charge_date)
+          my_return_date = my_charge_date
+          puts "#{my_charge_date}, #{today_date}"
+          if my_charge_date < today_date 
+            puts "Box has already shipped, sorry can't add ... charge date is #{local_charge_date.inspect}"
+            submit_order_flag = false
+            end
+        end
       end
-      
-      return submit_order_flag
+      my_return_data = {"process_order" => submit_order_flag, "charge_date" => my_return_date}
+      return my_return_data
   end
 
 end

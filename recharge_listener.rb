@@ -39,7 +39,9 @@ configure do
   $password = ENV['ELLIE_STAGING_PASSWORD']
   $shopname = ENV['SHOPNAME']
   $shopify_wait = ENV['SHOPIFY_SLEEP_TIME']
-  
+  $recharge_wait = ENV['RECHARGE_SLEEP_TIME']
+  SHOP_WAIT = ENV['SHOPIFY_SLEEP_TIME']
+  RECH_WAIT = ENV['RECHARGE_SLEEP_TIME']
   
   
   end
@@ -264,8 +266,8 @@ class UpsellRemove
       shopify_id = remove_add_on_data['shopify_id']
       product_id = remove_add_on_data['shopify_product_id']
       get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
-      puts "Must sleep 3 seconds"
-      sleep 3
+      puts "Must sleep #{RECH_WAIT} seconds"
+      sleep RECH_WAIT.to_i
       subscriber_stuff = get_sub_info.parsed_response
       #puts subscriber_stuff.inspect
       subscriptions = subscriber_stuff['subscriptions']
@@ -285,8 +287,8 @@ class UpsellRemove
           my_cancel = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{cancel_subscription_id}/cancel", :headers => $my_change_charge_header, :body => my_data)
           my_response = my_cancel.parsed_response
           puts "Recharges sent back: #{my_response}"
-          puts "Must Sleep now 3 seconds"
-          sleep 3
+          puts "Must Sleep now #{RECH_WAIT} seconds"
+          sleep RECH_WAIT.to_i
 
           end
         end
@@ -397,7 +399,8 @@ class UpsellProcess
       my_array = my_raw_header.split('/')
       my_result = my_array[0].to_i/my_array[1].to_f
       if my_result > 0.75
-        sleep $shopify_wait
+        puts "Too many calls, must sleep #{SHOP_WAIT} seconds"
+        sleep SHOP_WAIT
       end
 
       
@@ -409,21 +412,27 @@ class UpsellProcess
       
       my_charge_date = tomorrow.strftime("%Y-%m-%d")
 
-      data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => my_charge_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
-      puts data_send_to_recharge
+      
       #data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price_float, "quantity" => quantity, "shopify_variant_id" => variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
       #puts data_send_to_recharge
 
 
       puts "----"
-      submit_order_flag = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header)  
+      submit_order_hash = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header)  
+      submit_order_flag = submit_order_hash['process_order']
+      process_order_date = submit_order_hash['charge_date']
       puts "submit_order_flag = #{submit_order_flag}"
+
+      
 
       if submit_order_flag == false
           puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
       else
           puts "OK, submitting order"
-          sleep 3
+          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
+          puts data_send_to_recharge
+          puts "sleeping #{RECH_WAIT}"
+          sleep RECH_WAIT.to_i
           puts "Submitting order as a new upsell subscription"
           send_upsell_to_recharge = HTTParty.post("https://api.rechargeapps.com/subscriptions", :headers => $my_change_charge_header, :body => data_send_to_recharge)
           puts send_upsell_to_recharge.inspect
@@ -480,7 +489,8 @@ class Upsell
         submit_order_flag = check_for_duplicate_subscription(shopify_id, shopify_variant_id, $my_get_header)  
 
         if submit_order_flag
-          sleep 3
+          puts "Sleeping #{RECH_WAIT} seconds."
+          sleep RECH_WAIT.to_i
           puts "Submitting order as a new upsell subscription"
           send_upsell_to_recharge = HTTParty.post("https://api.rechargeapps.com/subscriptions", :headers => $my_change_charge_header, :body => data_send_to_recharge)
           puts send_upsell_to_recharge.inspect
@@ -519,14 +529,14 @@ class UnSkip
       puts "My Subscriber ID = #{my_subscription_id}, my original date = #{orig_sub_date}"
 
 
-     puts "Must sleep for 3 secs"
-     sleep 3
+     puts "Must sleep for #{RECH_WAIT} secs"
+     sleep RECH_WAIT.to_i
      
      my_customer_email = request_customer_email(shopify_id, $my_get_header)
 
      puts "My customer_email = #{my_customer_email}" 
-     puts "Must sleep for 3 secs again"
-     sleep 3
+     puts "Must sleep for #{RECH_WAIT} secs again"
+     sleep RECH_WAIT.to_i
      customer_next_subscription_date = DateTime.parse(orig_sub_date)
      customer_previous_month = customer_next_subscription_date << 1
      customer_previous_month_name = customer_previous_month.strftime("%B")
@@ -586,8 +596,8 @@ class ChooseDate
       my_subscription_id = ''
       get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
       mysubs = get_sub_info.parsed_response
-      puts "Must sleep for 3 seconds"
-      sleep 3
+      puts "Must sleep for #{RECH_WAIT} seconds"
+      sleep RECH_WAIT.to_i
       subsonly = mysubs['subscriptions']
       subsonly.each do |subs|
         if subs['status'] != "CANCELLED"
@@ -602,26 +612,7 @@ class ChooseDate
           end
         end
 
-
-
-
-
-
-
-      #puts "#{shopify_id}, #{$my_get_header}, #{alt_title}"
-      #subscriber_data = request_subscriber_id(shopify_id, $my_get_header, alt_title)
-      #my_subscription_id = subscriber_data['my_subscription_id']
-      #orig_sub_date = subscriber_data['orig_sub_date']
-      #puts "Subscription_id = #{my_subscription_id}, original_subscription_date = #{orig_sub_date}"
-      #puts "Must sleep 3 seconds"
-      #sleep 3
-      #my_customer_email = request_customer_email(shopify_id, $my_get_header)
-
-      #puts "My customer_email = #{my_customer_email}" 
-      #puts "Must sleep for 3 secs again"
-      #sleep 3
-      #check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
-
+      
     else
       puts "Action must be change_date, and action is #{action} so we can't do anything."
     end     
@@ -648,8 +639,8 @@ class SkipMonth
 
       get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
       mysubs = get_sub_info.parsed_response
-      puts "Must sleep for 3 seconds"
-      sleep 3
+      puts "Must sleep for #{RECH_WAIT} seconds"
+      sleep RECH_WAIT.to_i
       subsonly = mysubs['subscriptions']
       subsonly.each do |subs|
         
