@@ -152,7 +152,7 @@ module FixMonth
         local_status = mysub['status']
         #local_sku = mysub['sku']
         local_product_title = mysub['product_title']
-        today_date = Date.today + 3
+        today_date = Date.today + 1
         
         current_month = Date.today.strftime("%B")
         alt_vip_title = "#{current_month} VIP Box"
