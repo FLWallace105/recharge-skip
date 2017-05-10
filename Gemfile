@@ -5,3 +5,4 @@ gem 'puma'
 gem 'httparty'
 gem 'dotenv'
 gem "resque"
+gem "shopify_api"
