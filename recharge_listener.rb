@@ -385,6 +385,10 @@ class UpsellProcess
       #puts "OK HERE"
       my_variant = ShopifyAPI::Variant.find(variant_id)
       puts "found variant #{my_variant.id}"
+      my_customer_size = my_variant.option1
+      puts "Customer size = #{my_customer_size}"
+      #create customer line item properties for history
+      line_item_properties = [ { "name" => "size", "value" => my_customer_size } ]
       my_raw_price = my_variant.price.to_f
       puts "my_raw_price = #{my_raw_price}"
       my_true_variant_id = variant_id.to_i
@@ -429,7 +433,7 @@ class UpsellProcess
           puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
       else
           puts "OK, submitting order"
-          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
+          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => line_item_properties }.to_json
           puts data_send_to_recharge
           puts "sleeping #{RECH_WAIT}"
           sleep RECH_WAIT.to_i
