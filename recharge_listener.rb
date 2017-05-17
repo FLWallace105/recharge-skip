@@ -584,7 +584,8 @@ class ChooseDate
     puts "shopify_id = #{shopify_id}"
     puts "new_date = #{new_date}"
     puts "action = #{action}"
-
+    my_today_date = Date.today
+    puts "Today's Date is #{my_today_date.to_s}"
     if action == 'change_date'
       puts "Changing the date for charge/shipping"
       #Get alt_title
@@ -600,6 +601,7 @@ class ChooseDate
       my_subscription_id = ''
       get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
       mysubs = get_sub_info.parsed_response
+      puts mysubs
       puts "Must sleep for #{RECH_WAIT} seconds"
       sleep RECH_WAIT.to_i
       subsonly = mysubs['subscriptions']
@@ -610,8 +612,20 @@ class ChooseDate
               puts subs.inspect
               my_subscription_id = subs['id']
               orig_sub_date = subs['next_charge_scheduled_at']
+              puts "subscription created at #{subs['created_at']}"
+              temp_sub_created = subs['created_at'].split('T')
+              my_temp_sub_create = temp_sub_created[0]
+              puts my_temp_sub_create
+              subscription_created_at = Date.parse(my_temp_sub_create)
+              sub_created_at_str = subscription_created_at.strftime('%m-%d-%Y')
+              today_str = my_today_date.strftime('%m-%d-%Y')
+              puts "Subscription created at: #{sub_created_at_str}, today is #{today_str}"
               puts "#{my_subscription_id}, #{orig_sub_date}"
-              check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
+              if today_str != sub_created_at_str
+                check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
+              elsif
+                puts "We cannot change date, today is #{today_str} and subscription_created_at is #{sub_created_at_str} "
+                end
               end
           end
         end
@@ -631,6 +645,7 @@ class SkipMonth
     puts skip_month_data.inspect
     action = skip_month_data['action']
     shopify_id = skip_month_data['shopify_id']
+
     if action == 'skip_month'
       current_month = Date.today.strftime("%B")
       plain_title = "#{current_month} Box"
