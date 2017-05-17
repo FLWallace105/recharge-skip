@@ -617,14 +617,14 @@ class ChooseDate
               my_temp_sub_create = temp_sub_created[0]
               puts my_temp_sub_create
               subscription_created_at = Date.parse(my_temp_sub_create)
-              sub_created_at_str = subscription_created_at.strftime('%m-%d-%Y')
-              today_str = my_today_date.strftime('%m-%d-%Y')
-              puts "Subscription created at: #{sub_created_at_str}, today is #{today_str}"
+              sub_created_at_str = subscription_created_at.strftime('%B')
+              today_str = my_today_date.strftime('%B')
+              puts "Subscription created at: #{sub_created_at_str}, today month is #{today_str}"
               puts "#{my_subscription_id}, #{orig_sub_date}"
               if today_str != sub_created_at_str
                 check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
               elsif
-                puts "We cannot change date, today is #{today_str} and subscription_created_at is #{sub_created_at_str} "
+                puts "We cannot change date, today month is #{today_str} and subscription_created_at is month #{sub_created_at_str} "
                 end
               end
           end
