@@ -1,5 +1,5 @@
 #recharge_listener.rb
-require 'sinatra'
+require 'sinatra/base'
 require 'httparty'
 require 'dotenv'
 require "resque"
@@ -10,8 +10,8 @@ require_relative 'worker_helpers'
 class SkipIt < Sinatra::Base
 
 
-configure do 
-  
+configure do
+
   enable :logging
   set :server, :puma
   Dotenv.load
@@ -29,7 +29,7 @@ configure do
             "Accept" => "application/json",
             "Content-Type" =>"application/json"
         }
-  
+
   #uncomment below for push to Heroku.
   uri2 = URI.parse(ENV["REDIS_URL"])
   REDIS = Redis.new(:host => uri2.host, :port => uri2.port, :password => uri2.password)
@@ -42,8 +42,8 @@ configure do
   $recharge_wait = ENV['RECHARGE_SLEEP_TIME']
   SHOP_WAIT = ENV['SHOPIFY_SLEEP_TIME']
   RECH_WAIT = ENV['RECHARGE_SLEEP_TIME']
-  
-  
+
+
   end
 
 
@@ -60,28 +60,39 @@ get '/recharge' do
   puts shopify_id
   action = params['action']
 
-  #stuff below for Heroku 
+  #stuff below for Heroku
   Resque.redis = REDIS
   skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
   Resque.enqueue(SkipMonth, skip_month_data)
-  
+
 
 end
 
-
+get '/next-month-preview' do
+  content_type :application_javascript
+  status 200
+  puts "Processing Next Month Preview Ship Request"
+  puts params.inspect
+  shopify_id = params['shopify_id']
+  new_date = params['new_date']
+  action = params['action']
+  preview_month_data = {"shopify_id" => shopify_id, "ship_date" => new_date, "action" => action}
+  Resque.redis = REDIS
+  Resque.enqueue(PreviewMonth, preview_month_data)
+end
 
 get '/recharge-new-ship-date' do
   content_type :application_javascript
   status 200
- 
+
   puts "Doing change ship date"
   puts params.inspect
   shopify_id = params['shopify_id']
   new_date = params['new_date']
   action = params['action']
   choosedate_data = {"shopify_id" => shopify_id, "new_date" => new_date, 'action' => action}
-  
-  #stuff below for Heroku 
+
+  #stuff below for Heroku
   Resque.redis = REDIS
   Resque.enqueue(ChooseDate, choosedate_data)
 
@@ -90,7 +101,7 @@ end
 get '/recharge-unskip' do
   content_type :application_javascript
   status 200
- 
+
   puts "Doing unskipping task"
   puts params.inspect
   shopify_id = params['shopify_id']
@@ -98,7 +109,7 @@ get '/recharge-unskip' do
 
   unskip_data = {"shopify_id" => shopify_id, "action" => action }
 
-  #stuff below for Heroku 
+  #stuff below for Heroku
   Resque.redis = REDIS
   Resque.enqueue(UnSkip, unskip_data)
 
@@ -111,7 +122,7 @@ get '/customer_size_returner' do
   shopify_id = params['shopify_id']
   puts "Shopify_id = #{shopify_id} and action = #{action}"
   sleep 6
-  
+
   my_data = {"shopify_id" => shopify_id, "action" => action}
   customer_data = return_cust_sizes(my_data)
   puts customer_data.inspect
@@ -119,7 +130,7 @@ get '/customer_size_returner' do
   send_back = "custSize(#{customer_data})"
   body send_back
   puts send_back
-  
+
   puts "Done now"
 
 end
@@ -127,7 +138,7 @@ end
 get '/upsells' do
   puts "Doing upsell task"
   puts params.inspect
-  
+
 
   content_type :application_json
   customer_data = {"return_value" => "hi_there"}
@@ -135,10 +146,10 @@ get '/upsells' do
   send_back = "myUpsells(#{customer_data})"
   body send_back
   puts send_back
-  #stuff below for Heroku 
+  #stuff below for Heroku
   Resque.redis = REDIS
   Resque.enqueue(UpsellProcess, params)
-  
+
 end
 
 get '/upsell_remove' do
@@ -154,14 +165,14 @@ get '/upsell_remove' do
   Resque.redis = REDIS
   Resque.enqueue(UpsellRemove, params)
 
-  
+
 end
 
 
 get '/change_cust_size' do
   puts "Doing changing customer sizes"
   puts params.inspect
-  #stuff below for Heroku 
+  #stuff below for Heroku
   Resque.redis = REDIS
   Resque.enqueue(ChangeCustSizes, params)
 
@@ -198,8 +209,8 @@ helpers do
         if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
           #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
           orig_sub_date = subs['next_charge_scheduled_at']
-          my_subscription_id = subs['id'] 
-          sizes_stuff = subs['properties'] 
+          my_subscription_id = subs['id']
+          sizes_stuff = subs['properties']
           puts sizes_stuff.inspect
           sizes_stuff.each do |stuff|
             puts stuff.inspect
@@ -213,7 +224,7 @@ helpers do
               end #case
 
             end
-                
+
           end
         end
       #set customer sizes
@@ -245,13 +256,63 @@ helpers do
       puts subs.inspect
       if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title
          puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
-         
+
          end
      end
      orig_sub_date ="\"#{orig_sub_date}\""
-     
+
   end
 
+end
+
+class PreviewMonth
+  extend FixMonth
+  @queue = "preview_month"
+  def self.perform(preview_month_data)
+    puts "Now processing customer preview request ..."
+    puts preview_month_data.inspect
+    my_action = preview_month_data['action']
+    if my_action == "get_preview_month"
+      shopify_id = preview_month_data['shopify_id']
+      new_date = preview_month_data['ship_date']
+      cust_requested_date = DateTime.strptime(new_date, '%Y-%m-%d')
+      cust_month = cust_requested_date.strftime('%B')
+      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+      sleep RECH_WAIT.to_i
+      puts "Sleeping #{RECH_WAIT} seconds."
+      mysubs = get_sub_info.parsed_response
+      allsubscriptions = mysubs['subscriptions']
+      allsubscriptions.each do |subs|
+          if subs['status'] != "CANCELLED" && !!(subs['product_title'] =~/box/i)
+            puts "------------------"
+            puts subs.inspect
+            next_charge = subs['next_charge_scheduled_at']
+            puts "Next Charge Scheduled at: #{next_charge}"
+            #2017-06-20T00:00:00
+            actual_scheduled = DateTime.strptime(next_charge, '%Y-%m-%dT%H:%M:%S')
+            actual_month = actual_scheduled.strftime('%B')
+            puts "Customer Month Requested is #{cust_month} and actual charge month is #{actual_month}"
+            if cust_month != actual_month
+              puts "We can't allow customer to accept next month, looks like customer's next charge date is still pending last three days of the month."
+            elsif     
+              subscription_id = subs['id']
+              puts "Accepting Next Month for subscription id #{subscription_id}" 
+
+              body = { "date" => new_date }.to_json
+              
+              reset_charge_date_post(subscription_id, $my_change_charge_header, body)
+
+            end
+            puts "------------------"
+          end
+        end
+      
+
+
+    else
+      puts "Sorry, the action is #{my_action}, not get_preview_month therefore we cannot process this request."
+    end
+  end
 end
 
 class UpsellRemove
@@ -334,11 +395,11 @@ class ChangeCustSizes
 
       current_month = Date.today.strftime("%B")
       alt_title = "#{current_month} VIP Box"
-      
+
       my_subscription_id = ''
 
       my_subscriber_data = request_subscriber_id(my_shopify_id, $my_get_header, alt_title)
-      
+
       my_subscription_id = my_subscriber_data['my_subscription_id']
       puts "My Subscriber ID = #{my_subscription_id}"
       my_data_recharge = {"properties" => [{"name" => "leggings", "value" => bottom_sizes }, {"name" => "sports-bra", "value" =>bra_sizes }, {"name" => "tops", "value" => top_sizes }]}.to_json
@@ -351,7 +412,7 @@ class ChangeCustSizes
       puts "We can't do anything, must be change_cust_sizes"
 
       end
-    
+
   end
 
 end
@@ -371,10 +432,10 @@ class UpsellProcess
       #go ahead and do stuff
       puts "processing this order"
       shopify_id = upsellprocess_data['shopify_id']
-      
+
       variant_id = upsellprocess_data['shopify_variant_id']
       puts "variant_id=#{variant_id}"
-      puts "processing customer upsell products" 
+      puts "processing customer upsell products"
       cust_id = request_recharge_id(shopify_id, $my_get_header)
       puts "cust_id =#{cust_id}"
       address_id = request_address_id(cust_id, $my_get_header)
@@ -407,27 +468,27 @@ class UpsellProcess
         sleep SHOP_WAIT
       end
 
-      
+
 
       puts "my_product_title=#{my_product_title}, my_true_variant_id=#{my_true_variant_id}, true_price=#{true_price}, my_product_id = #{my_product_id}"
       #hard-code quantity=1 and today's date for next-charge
       quantity = 1
       tomorrow = Date.today + 1
-      
+
       my_charge_date = tomorrow.strftime("%Y-%m-%d")
 
-      
+
       #data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price_float, "quantity" => quantity, "shopify_variant_id" => variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1"}.to_json
       #puts data_send_to_recharge
 
 
       puts "----"
-      submit_order_hash = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header)  
+      submit_order_hash = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header)
       submit_order_flag = submit_order_hash['process_order']
       process_order_date = submit_order_hash['charge_date']
       puts "submit_order_flag = #{submit_order_flag}"
 
-      
+
 
       if submit_order_flag == false
           puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
@@ -441,7 +502,7 @@ class UpsellProcess
           send_upsell_to_recharge = HTTParty.post("https://api.rechargeapps.com/subscriptions", :headers => $my_change_charge_header, :body => data_send_to_recharge)
           puts send_upsell_to_recharge.inspect
         end
-     
+
 
     else
       #don't do anything, incorrect parameters
@@ -461,7 +522,7 @@ class Upsell
     action = upsell_data['action']
     shopify_id = upsell_data['shopify_id']
     product_title = upsell_data['product_title']
-    
+
     next_charge = upsell_data['next_charge']
     price = upsell_data['price']
     quantity = upsell_data['quantity']
@@ -471,10 +532,10 @@ class Upsell
     #create properties array here, be CAREFUL MUST BE NAME-VALUE pairs
     property_json = {"name" => "size", "value" => "S"}
     properties = [property_json]
-    
-    
+
+
     if action == 'cust_upsell'
-        puts "processing customer upsell products" 
+        puts "processing customer upsell products"
         cust_id = request_recharge_id(shopify_id, $my_get_header)
         address_id = request_address_id(cust_id, $my_get_header)
         #puts product_title, next_charge, price, quantity, shopify_variant_id, size
@@ -484,13 +545,13 @@ class Upsell
         #next_charge_scheduled = "#{next_charge_scheduled}"
         data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price, "quantity" => quantity, "shopify_variant_id" => shopify_variant_id, "sku" => sku, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => properties}.to_json
         puts data_send_to_recharge
-        
+
 
         #puts $my_change_charge_header
         #Before sending, request all subscriptions and avoid submitting duplicates.
-        
-        
-        submit_order_flag = check_for_duplicate_subscription(shopify_id, shopify_variant_id, $my_get_header)  
+
+
+        submit_order_flag = check_for_duplicate_subscription(shopify_id, shopify_variant_id, $my_get_header)
 
         if submit_order_flag
           puts "Sleeping #{RECH_WAIT} seconds."
@@ -535,10 +596,10 @@ class UnSkip
 
      puts "Must sleep for #{RECH_WAIT} secs"
      sleep RECH_WAIT.to_i
-     
+
      my_customer_email = request_customer_email(shopify_id, $my_get_header)
 
-     puts "My customer_email = #{my_customer_email}" 
+     puts "My customer_email = #{my_customer_email}"
      puts "Must sleep for #{RECH_WAIT} secs again"
      sleep RECH_WAIT.to_i
      customer_next_subscription_date = DateTime.parse(orig_sub_date)
@@ -553,13 +614,13 @@ class UnSkip
         puts my_data.inspect
         puts "My Subscription ID = #{my_subscription_id}"
         reset_charge_date_post(my_subscription_id, $my_change_charge_header, my_data)
-        
+
 
      else
         puts "Months to unskip don't match, not doing anything"
-    
+
      end
-   
+
 
     else
       puts "Sorry that action is not unskip_month we won't do anything"
@@ -630,10 +691,10 @@ class ChooseDate
           end
         end
 
-      
+
     else
       puts "Action must be change_date, and action is #{action} so we can't do anything."
-    end     
+    end
 
   end
 end
@@ -662,7 +723,7 @@ class SkipMonth
       sleep RECH_WAIT.to_i
       subsonly = mysubs['subscriptions']
       subsonly.each do |subs|
-        
+
         if subs['status'] != "CANCELLED"
             product_title = subs['product_title']
             if product_title == "VIP 3 Monthly Box" || product_title == "Monthly Box" || product_title ==   alt_title || product_title = plain_title || product_title == old_three_month_box
@@ -672,14 +733,14 @@ class SkipMonth
               puts "#{my_subscription_id}, #{orig_sub_date}"
               #Now check to see if the subscriber can skip to next month, i.e. their current
               #next_subscription date is this month. If not, do nothing.
-              my_sub_date = DateTime.parse(orig_sub_date)  
+              my_sub_date = DateTime.parse(orig_sub_date)
               subscriber_actual_next_charge_month = my_sub_date.strftime("%B")
               puts "Subscriber next charge month = #{subscriber_actual_next_charge_month}"
               puts "Current month is #{current_month}"
-              if current_month == subscriber_actual_next_charge_month 
+              if current_month == subscriber_actual_next_charge_month
                  puts "Skipping charge to next month"
                  skip_to_next_month(my_subscription_id, my_sub_date, $my_change_charge_header)
-        
+
               else
                  puts "We can't do anything, the next_charge_month is #{subscriber_actual_next_charge_month} which is not the current month -- #{current_month}"
               end
@@ -712,7 +773,7 @@ class MyParamHandler
             "Accept" => "application/json",
             "Content-Type" =>"application/json"
         }
-    
+
     get_info = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => @my_header)
     my_info = get_info.parsed_response
     puts my_info.inspect
@@ -727,7 +788,7 @@ class MyParamHandler
     sleep 2
 
     puts all_charges['charges'].inspect
-    
+
     my_charges = all_charges['charges']
     #puts my_charges.inspect
     #puts my_charges.class
@@ -752,8 +813,8 @@ class MyParamHandler
       myc['line_items'].each do |line|
         puts ""
         puts line.inspect
-        
-      
+
+
         if line['title'] == "Monthly Box" || line['title'] == alt_title || line['title'] == alt_3month_title || line['title'] == alt_month_plain_title || line['title'] == old_3month_box
           subscription_id = line['subscription_id']
           puts "Found Subscription id = #{subscription_id}"
@@ -773,9 +834,9 @@ class MyParamHandler
 
             my_next_month = my_sub_date >> 1
             my_day_month = my_sub_date.strftime("%e").to_i
-        
+
             next_month_name = my_next_month.strftime("%B")
-            #puts next_month_name 
+            #puts next_month_name
             #Constructors for new subscription charge date
             my_new_year = my_next_month.strftime("%Y")
             my_new_month = my_next_month.strftime("%m")
@@ -835,11 +896,11 @@ class MyParamHandler
         end
         puts ""
         end
-      
-      
+
+
       end
       puts "Done with skipping this subscription, #{subscription_id}"
-  end  
+  end
 end
 
 
