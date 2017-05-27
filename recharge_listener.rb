@@ -47,7 +47,14 @@ configure do
   end
 
 
+get '/next-month-skip' do
+  content_type :application_javascript
+  status 200
+  puts "Doing Skip Next Month Preview"
+  puts params.inspect
+  Resque.enqueue(SkipPreviewMonth, params)
 
+end
 
 
 
@@ -264,6 +271,70 @@ helpers do
   end
 
 end
+
+class SkipPreviewMonth
+  extend FixMonth
+  @queue = "skip_preview_month"
+  def self.perform(params)
+    puts "We have the following params --> #{params.inspect}"
+    shopify_id = params['shopify_id']
+    action = params['action']
+    if action == "skip_next_month"
+      my_today_date = Date.today
+      next_month = my_today_date >> 1
+      current_month = my_today_date.strftime('%B')
+      next_month_name = next_month.strftime('%B')
+      puts "This is month #{current_month} and next month is #{next_month_name}"
+      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)   
+      my_api_info = get_sub_info.response['x-recharge-limit']
+      puts "Recharge says we have the following api call limits: #{my_api_info}"
+      api_array = my_api_info.split('/')
+      #puts api_array.inspect
+      my_numerator = api_array[0].to_i
+      my_denominator = api_array[1].to_i
+      api_percentage_used = my_numerator/my_denominator.to_f
+      puts "Which is #{api_percentage_used.round(2)}"
+      if api_percentage_used > 0.6
+        puts "Must sleep #{RECH_WAIT} seconds"
+        sleep RECH_WAIT.to_i
+      end
+      mysubs = get_sub_info.parsed_response
+      subscriptions = mysubs['subscriptions']
+      subscriptions.each do |mys|
+        if mys['status'] != "CANCELLED"
+          puts "-------------"
+          puts mys.inspect           
+          puts "-------------"
+          puts ""
+          puts "======================="
+          next_charge_scheduled = mys['next_charge_scheduled_at']
+          next_charge_date = DateTime.strptime(next_charge_scheduled, '%Y-%m-%dT%H:%M:%S')
+          next_charge_month = next_charge_date.strftime('%B')
+          puts "next_charge_month is #{next_charge_month} and system next month is #{next_month_name}"
+          if next_month_name == next_charge_month
+            puts "We can skip next month as a preview"
+            subscription_id = mys['id']
+            puts "Skipping Subscription ID #{subscription_id}"
+            skip_to_next_month(subscription_id, next_charge_date, $my_change_charge_header)
+          else
+            puts "We can't skip next month, the next charge is scheduled at: #{next_charge_scheduled}"
+          end
+          puts "======================="
+        end
+      end
+      
+
+
+    else
+      puts "Action is #{action}, not skip_next_month, we cannot do anything, wrong parameters sent"  
+    end
+
+  end
+
+end
+
+
+
 
 class PreviewMonth
   extend FixMonth

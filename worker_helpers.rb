@@ -76,6 +76,7 @@ module FixMonth
       my_data = my_data.to_json
       #puts my_data
       reset_subscriber_date = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{subscription_id}/set_next_charge_date", :headers => headers, :body => my_data)
+      check_recharge_limits(reset_subscriber_date)
       puts "Changed Subscription Info, Details below:"
       puts reset_subscriber_date
 
@@ -192,6 +193,20 @@ module FixMonth
       end
       my_return_data = {"process_order" => submit_order_flag, "charge_date" => my_return_date}
       return my_return_data
+  end
+
+  def check_recharge_limits(api_info)
+      my_api_info = api_info.response['x-recharge-limit']
+      api_array = my_api_info.split('/')    
+      my_numerator = api_array[0].to_i
+      my_denominator = api_array[1].to_i
+      api_percentage_used = my_numerator/my_denominator.to_f
+      puts "API Call percentage used is #{api_percentage_used.round(2)}"
+      if api_percentage_used > 0.6
+        puts "Must sleep #{RECH_WAIT} seconds"
+        sleep RECH_WAIT.to_i
+      end
+
   end
 
 end
