@@ -139,7 +139,7 @@ module FixMonth
     return address_id
   end
 
-  def check_for_duplicate_subscription(shopify_id, shopify_variant_id, product_title, my_get_header)
+  def check_for_duplicate_subscription(shopify_id, shopify_variant_id, product_title, my_get_header, preview)
     all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
     #puts all_subscriptions_customer.inspect
     my_return_date = Date.today + 1
@@ -183,9 +183,11 @@ module FixMonth
           end
           #Put check in here to see if the box has been skipped next month, then don't create add ons
           charge_date_month = my_charge_date.strftime("%B")
-          if charge_date_month != current_month
-            puts "Can't add the upsell -- Customer skipped month to #{charge_date_month}"
-            submit_order_flag = false
+          if preview == false
+            if charge_date_month != current_month
+              puts "Can't add the upsell -- Customer skipped month to #{charge_date_month}"
+              submit_order_flag = false
+            end
           end
 
 

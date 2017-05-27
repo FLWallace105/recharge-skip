@@ -56,6 +56,17 @@ get '/next-month-skip' do
 
 end
 
+get '/preview-upsells' do
+  content_type :application_javascript
+  status 200
+  puts "Doing Preview Month Upsell"
+  puts params.inspect
+  
+  Resque.enqueue(UpsellPreviewMonth, params)
+
+
+end
+
 
 
 get '/recharge' do
@@ -488,7 +499,76 @@ class ChangeCustSizes
 
 end
 
+class UpsellPreviewMonth
+  extend FixMonth
+  @queue = "upsellpreview"
+  def self.perform(params)
+    puts "Unpacking the Preview Month upsell info"
+    puts params.inspect
+    puts "---------------"
+    my_action = params['endpoint_info']
+    variant_id = params['shopify_variant_id']
+    shopify_id = params['shopify_id']
+    if my_action == "cust_upsell" && variant_id != '' && !variant_id.nil?
+      #go ahead and do stuff
+      puts "processing this order"
+      cust_id = request_recharge_id(shopify_id, $my_get_header)
+      puts "cust_id =#{cust_id}"
+      address_id = request_address_id(cust_id, $my_get_header)
+      ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      #puts "OK HERE"
+      my_variant = ShopifyAPI::Variant.find(variant_id)
+      puts "found variant #{my_variant.id}"
+      my_customer_size = my_variant.option1
+      puts "Customer size = #{my_customer_size}"
+      #create customer line item properties for history
+      line_item_properties = [ { "name" => "size", "value" => my_customer_size } ]
+      my_raw_price = my_variant.price.to_f
+      puts "my_raw_price = #{my_raw_price}"
+      my_true_variant_id = variant_id.to_i
+      true_price = my_raw_price
+      my_product_id = my_variant.product_id.to_i
+      my_product = ShopifyAPI::Product.find(my_product_id)
+      my_product_title = my_product.title
+      puts "Found #{my_product_title}"
+      #puts ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      my_raw_header = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      puts "Shopify Header Info: #{my_raw_header}"
+      my_array = my_raw_header.split('/')
+      my_result = my_array[0].to_i/my_array[1].to_f
+      if my_result > 0.75
+        puts "Too many calls, must sleep #{SHOP_WAIT} seconds"
+        sleep SHOP_WAIT
+      end
+      puts "my_product_title=#{my_product_title}, my_true_variant_id=#{my_true_variant_id}, true_price=#{true_price}, my_product_id = #{my_product_id}"
+      #hard-code quantity=1 and today's date for next-charge
+      quantity = 1
+      preview = true
+      
+      submit_order_hash = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header, preview)
+      submit_order_flag = submit_order_hash['process_order']
+      process_order_date = submit_order_hash['charge_date']
+      puts "submit_order_flag = #{submit_order_flag}"
 
+      if submit_order_flag == false
+          puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
+      else
+          puts "OK, submitting order"
+          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => line_item_properties }.to_json
+          puts data_send_to_recharge
+          puts "sleeping #{RECH_WAIT}"
+          sleep RECH_WAIT.to_i
+          puts "Submitting order as a new upsell subscription"
+          send_upsell_to_recharge = HTTParty.post("https://api.rechargeapps.com/subscriptions", :headers => $my_change_charge_header, :body => data_send_to_recharge)
+          puts send_upsell_to_recharge.inspect
+        end
+
+
+    else
+      puts "WARNING ERROR: Action is #{my_action} and it must be cust_upsell, or else variant_id is nil and variant_id = #{variant_id}, we can't do anything here, not processing this upsell."
+    end
+  end
+end
 
 class UpsellProcess
   extend FixMonth
@@ -554,7 +634,8 @@ class UpsellProcess
 
 
       puts "----"
-      submit_order_hash = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header)
+      preview = false
+      submit_order_hash = check_for_duplicate_subscription(shopify_id, my_true_variant_id, my_product_title, $my_get_header, preview)
       submit_order_flag = submit_order_hash['process_order']
       process_order_date = submit_order_hash['charge_date']
       puts "submit_order_flag = #{submit_order_flag}"
