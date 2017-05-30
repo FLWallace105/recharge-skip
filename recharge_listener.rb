@@ -4,6 +4,7 @@ require 'httparty'
 require 'dotenv'
 require "resque"
 require 'shopify_api'
+require 'active_support/core_ext'
 
 require_relative 'worker_helpers'
 
@@ -355,6 +356,9 @@ class PreviewMonth
     puts preview_month_data.inspect
     my_action = preview_month_data['action']
     if my_action == "get_preview_month"
+      last_day_current_month = Date.today.end_of_month
+      
+      puts "Last day of current month = #{last_day_current_month}"
       shopify_id = preview_month_data['shopify_id']
       new_date = preview_month_data['ship_date']
       cust_requested_date = DateTime.strptime(new_date, '%Y-%m-%d')
@@ -373,8 +377,13 @@ class PreviewMonth
             #2017-06-20T00:00:00
             actual_scheduled = DateTime.strptime(next_charge, '%Y-%m-%dT%H:%M:%S')
             actual_month = actual_scheduled.strftime('%B')
+
             puts "Customer Month Requested is #{cust_month} and actual charge month is #{actual_month}"
-            if cust_month != actual_month
+            # Check to see if actual_scheduled is greater than the last day of the month
+            puts "Last Day of the month is #{last_day_current_month.to_s}"
+            
+
+            if last_day_current_month >= actual_scheduled
               puts "We can't allow customer to accept next month, looks like customer's next charge date is still pending last three days of the month."
             elsif     
               subscription_id = subs['id']
