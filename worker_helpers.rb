@@ -143,6 +143,7 @@ module FixMonth
     all_subscriptions_customer = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
     #puts all_subscriptions_customer.inspect
     my_return_date = Date.today + 1
+    next_month = Date.today >> 1
     puts "Checking for duplicates ..."
     submit_order_flag = false
     puts "We want to avoid duplicate orders for ... #{product_title}, variant_id #{shopify_variant_id}"
@@ -188,6 +189,17 @@ module FixMonth
               puts "Can't add the upsell -- Customer skipped month to #{charge_date_month}"
               submit_order_flag = false
             end
+          else
+            #Logic is that we check to see if next_charge_date is one month ahead of next month as its preview last three days
+            next_month_name = next_month.strftime("%B")
+            puts "Checking for upsell skip month."
+            puts  "Next month is #{next_month_name} and next charge date is #{charge_date_month}"
+            if next_month_name != charge_date_month
+              puts "Can't add the upsell, looks like the customer has skipped next month"
+              puts "Skipping this upsell"
+              submit_order_flag = false
+            end
+
           end
 
 

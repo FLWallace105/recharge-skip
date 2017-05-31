@@ -45,10 +45,98 @@ configure do
   RECH_WAIT = ENV['RECHARGE_SLEEP_TIME']
 
 
+
+end
+
+def initialize
+    #Dotenv.load
+    @key = "0bf3e2c2faa84cbb318f41f7402ee451"
+    @secret = "a1eeada57d9154cbfd3ca622f53e4589"
+    @app_url = "localhost:4567"
+    @tokens = {}
+    super
   end
 
+  get '/install' do
+  shop = "elliestaging.myshopify.com"
+  scopes = "read_orders,read_products"
 
-get '/next-month-skip' do
+  # construct the installation URL and redirect the merchant
+  install_url =
+    "http://#{shop}/admin/oauth/authorize?client_id=#{@key}&scope=#{scopes}"\
+    "&redirect_uri=http://#{@app_url}/auth/shopify/callback"
+
+  redirect install_url
+end
+
+get '/auth/shopify/callback' do
+  # extract shop data from request parameters
+  shop = request.params['shop']
+  code = request.params['code']
+  hmac = request.params['hmac']
+
+  # perform hmac validation to determine if the request is coming from Shopify
+  h = request.params.reject{|k,_| k == 'hmac' || k == 'signature'}
+  query = URI.escape(h.sort.collect{|k,v| "#{k}=#{v}"}.join('&'))
+  digest = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), @secret, query)
+
+  if not (hmac == digest)
+    return [403, "Authentication failed. Digest provided was: #{digest}"]
+  end
+
+  # if we don't have an access token for this particular shop,
+    # we'll post the OAuth request and receive the token in the response
+    if @tokens[shop].nil?
+      url = "https://#{shop}/admin/oauth/access_token"
+
+      payload = {
+        client_id: @key,
+        client_secret: @secret,
+        code: code}
+
+      response = HTTParty.post(url, body: payload)
+
+      # if the response is successful, obtain the token and store it in a hash
+      if response.code == 200
+        @tokens[shop] = response['access_token']
+      else
+        return [500, "Something went wrong."]
+      end
+    end
+
+    # now that we have the token, we can instantiate a session
+    session = ShopifyAPI::Session.new(shop, @tokens[shop])
+    @my_session = session
+    ShopifyAPI::Base.activate_session(session)
+
+    # create webhook for order creation if it doesn't exist
+    if not ShopifyAPI::Webhook.find(:all).any?
+      webhook = {
+        topic: 'orders/create',
+        address: "https://#{@app_url}/giftbasket/webhook/order_create",
+        format: 'json'}
+
+      ShopifyAPI::Webhook.create(webhook)
+    end
+
+    
+    redirect '/hello'
+
+end
+
+get '/hello' do
+  "Hello, success"
+end
+
+post '/funky-next-month-preview' do
+  content_type :application_javascript
+  status 200
+  puts "Doing Funky Skip Next Month Preview"
+  puts params.inspect
+
+end
+
+post '/next-month-skip' do
   content_type :application_javascript
   status 200
   puts "Doing Skip Next Month Preview"
@@ -57,7 +145,7 @@ get '/next-month-skip' do
 
 end
 
-get '/preview-upsells' do
+post '/preview-upsells' do
   content_type :application_javascript
   status 200
   puts "Doing Preview Month Upsell"
@@ -70,7 +158,7 @@ end
 
 
 
-get '/recharge' do
+post '/recharge' do
   content_type :application_javascript
   status 200
   puts "doing GET stuff"
@@ -87,20 +175,27 @@ get '/recharge' do
 
 end
 
-get '/next-month-preview' do
-  content_type :application_javascript
-  status 200
-  puts "Processing Next Month Preview Ship Request"
-  puts params.inspect
+post '/next-month-preview' do
+  content_type content_type :application_javascript
+  
   shopify_id = params['shopify_id']
   new_date = params['new_date']
   action = params['action']
+  #customer_data = {"new_date" => new_date}
+  #customer_data = customer_data.to_json
+  #send_back = "previewDate(#{customer_data});"
+  #body send_back
+  #puts send_back
+
+  #status 200
+  puts "Processing Next Month Preview Ship Request"
+  puts params.inspect
   preview_month_data = {"shopify_id" => shopify_id, "ship_date" => new_date, "action" => action}
   Resque.redis = REDIS
   Resque.enqueue(PreviewMonth, preview_month_data)
 end
 
-get '/recharge-new-ship-date' do
+post '/recharge-new-ship-date' do
   content_type :application_javascript
   status 200
 
@@ -154,7 +249,7 @@ get '/customer_size_returner' do
 
 end
 
-get '/upsells' do
+post '/upsells' do
   puts "Doing upsell task"
   puts params.inspect
 
@@ -171,7 +266,7 @@ get '/upsells' do
 
 end
 
-get '/upsell_remove' do
+post '/upsell_remove' do
   puts "Doing removing Upsell products from box subscription"
   puts params.inspect
   content_type :application_json
@@ -188,7 +283,7 @@ get '/upsell_remove' do
 end
 
 
-get '/change_cust_size' do
+post '/change_cust_size' do
   puts "Doing changing customer sizes"
   puts params.inspect
   #stuff below for Heroku
@@ -558,6 +653,8 @@ class UpsellPreviewMonth
       submit_order_flag = submit_order_hash['process_order']
       process_order_date = submit_order_hash['charge_date']
       puts "submit_order_flag = #{submit_order_flag}"
+      
+
 
       if submit_order_flag == false
           puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
