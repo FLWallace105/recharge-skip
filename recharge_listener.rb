@@ -50,8 +50,8 @@ end
 
 def initialize
     #Dotenv.load
-    @key = "0bf3e2c2faa84cbb318f41f7402ee451"
-    @secret = "a1eeada57d9154cbfd3ca622f53e4589"
+    @key = ENV['SHOPIFY_API_KEY']
+    @secret = ENV['SHOPIFY_SHARED_SECRET'] 
     @app_url = "staging-skip-month.herokuapp.com"
     @tokens = {}
     super
