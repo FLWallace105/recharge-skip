@@ -58,7 +58,7 @@ def initialize
   end
 
   get '/install' do
-  shop = "elliestaging.myshopify.com"
+  shop = "ellieactive.myshopify.com"
   scopes = "read_orders,read_products"
 
   # construct the installation URL and redirect the merchant
