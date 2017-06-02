@@ -137,7 +137,7 @@ post '/funky-next-month-preview' do
 
 end
 
-post '/next-month-skip' do
+get '/next-month-skip' do
   content_type :application_javascript
   status 200
   puts "Doing Skip Next Month Preview"
@@ -146,7 +146,7 @@ post '/next-month-skip' do
 
 end
 
-post '/preview-upsells' do
+get '/preview-upsells' do
   content_type :application_javascript
   status 200
   puts "Doing Preview Month Upsell"
@@ -159,7 +159,7 @@ end
 
 
 
-post '/recharge' do
+get '/recharge' do
   content_type :application_javascript
   status 200
   puts "doing GET stuff"
@@ -176,7 +176,7 @@ post '/recharge' do
 
 end
 
-post '/next-month-preview' do
+get '/next-month-preview' do
   content_type content_type :application_javascript
   
   shopify_id = params['shopify_id']
@@ -196,7 +196,7 @@ post '/next-month-preview' do
   Resque.enqueue(PreviewMonth, preview_month_data)
 end
 
-post '/recharge-new-ship-date' do
+get '/recharge-new-ship-date' do
   content_type :application_javascript
   status 200
 
@@ -250,7 +250,7 @@ get '/customer_size_returner' do
 
 end
 
-post '/upsells' do
+get '/upsells' do
   puts "Doing upsell task"
   puts params.inspect
 
@@ -267,7 +267,7 @@ post '/upsells' do
 
 end
 
-post '/upsell_remove' do
+get '/upsell_remove' do
   puts "Doing removing Upsell products from box subscription"
   puts params.inspect
   content_type :application_json
@@ -284,7 +284,7 @@ post '/upsell_remove' do
 end
 
 
-post '/change_cust_size' do
+get '/change_cust_size' do
   puts "Doing changing customer sizes"
   puts params.inspect
   #stuff below for Heroku
