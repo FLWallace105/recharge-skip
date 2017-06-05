@@ -52,13 +52,13 @@ def initialize
     #Dotenv.load
     @key = ENV['SHOPIFY_API_KEY']
     @secret = ENV['SHOPIFY_SHARED_SECRET'] 
-    @app_url = "skip-month.herokuapp.com"
+    @app_url = "ce9fcef0.ngrok.io"
     @tokens = {}
     super
   end
 
   get '/install' do
-  shop = "ellieactive.myshopify.com"
+  shop = "elliestaging.myshopify.com"
   scopes = "read_orders,read_products"
 
   # construct the installation URL and redirect the merchant
@@ -110,14 +110,14 @@ get '/auth/shopify/callback' do
     ShopifyAPI::Base.activate_session(session)
 
     # create webhook for order creation if it doesn't exist
-    if not ShopifyAPI::Webhook.find(:all).any?
-      webhook = {
-        topic: 'orders/create',
-        address: "https://#{@app_url}/giftbasket/webhook/order_create",
-        format: 'json'}
+    #if not ShopifyAPI::Webhook.find(:all).any?
+    #  webhook = {
+    #    topic: 'orders/create',
+    #    address: "https://#{@app_url}/giftbasket/webhook/order_create",
+    #    format: 'json'}
 
-      ShopifyAPI::Webhook.create(webhook)
-    end
+     # ShopifyAPI::Webhook.create(webhook)
+    #end
 
     
     redirect '/hello'
@@ -137,7 +137,7 @@ post '/funky-next-month-preview' do
 
 end
 
-get '/next-month-skip' do
+post '/next-month-skip' do
   content_type :application_javascript
   status 200
   puts "Doing Skip Next Month Preview"
@@ -146,7 +146,7 @@ get '/next-month-skip' do
 
 end
 
-get '/preview-upsells' do
+post '/preview-upsells' do
   content_type :application_javascript
   status 200
   puts "Doing Preview Month Upsell"
@@ -159,7 +159,7 @@ end
 
 
 
-get '/recharge' do
+post '/recharge' do
   content_type :application_javascript
   status 200
   puts "doing GET stuff"
@@ -176,7 +176,7 @@ get '/recharge' do
 
 end
 
-get '/next-month-preview' do
+post '/next-month-preview' do
   content_type content_type :application_javascript
   
   shopify_id = params['shopify_id']
@@ -196,7 +196,7 @@ get '/next-month-preview' do
   Resque.enqueue(PreviewMonth, preview_month_data)
 end
 
-get '/recharge-new-ship-date' do
+post '/recharge-new-ship-date' do
   content_type :application_javascript
   status 200
 
@@ -213,7 +213,7 @@ get '/recharge-new-ship-date' do
 
 end
 
-get '/recharge-unskip' do
+post '/recharge-unskip' do
   content_type :application_javascript
   status 200
 
@@ -230,7 +230,7 @@ get '/recharge-unskip' do
 
 end
 
-get '/customer_size_returner' do
+post '/customer_size_returner' do
   content_type :application_json
   puts params.inspect
   action = params['action']
@@ -250,7 +250,7 @@ get '/customer_size_returner' do
 
 end
 
-get '/upsells' do
+post '/upsells' do
   puts "Doing upsell task"
   puts params.inspect
 
@@ -267,7 +267,7 @@ get '/upsells' do
 
 end
 
-get '/upsell_remove' do
+post '/upsell_remove' do
   puts "Doing removing Upsell products from box subscription"
   puts params.inspect
   content_type :application_json
@@ -284,7 +284,7 @@ get '/upsell_remove' do
 end
 
 
-get '/change_cust_size' do
+post '/change_cust_size' do
   puts "Doing changing customer sizes"
   puts params.inspect
   #stuff below for Heroku
