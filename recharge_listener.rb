@@ -136,6 +136,15 @@ post '/funky-next-month-preview' do
 
 end
 
+post '/restart-customer' do
+  content_type :application_javascript
+  status 200
+  puts "Restarting Customer through Recharge API"
+  puts params.inspect
+  Resque.enqueue(ReactivateCustomer, params)
+
+end
+
 post '/next-month-skip' do
   content_type :application_javascript
   status 200
@@ -378,6 +387,62 @@ helpers do
   end
 
 end
+
+
+class ReactivateCustomer
+  extend FixMonth
+  @queue = "reactivate_cust"
+  def self.perform(params)
+    puts "Got the following --> #{params.inspect}"
+    shopify_id = params['shopify_id']
+    all_subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers =>  $my_get_header)
+    
+    
+    mysubs = all_subscriptions.parsed_response['subscriptions']
+    restart_id = ""
+    canceled_at = DateTime.strptime('2005-01-01', '%Y-%m-%d')
+    
+    mysubs.each do |subs|
+      if subs['status'] == 'CANCELLED'
+        if subs['product_title'] =~ /\A3\sMonths/i || subs['product_title'] =~ /box/i
+          puts "------------"
+          puts subs.inspect
+          puts "------------"
+          temp_str = subs['cancelled_at']
+          #puts temp_str
+          temp_date = DateTime.strptime(temp_str, '%Y-%m-%d %H:%M:%S')
+          #puts temp_date.inspect
+          #puts canceled_at.inspect
+          if temp_date > canceled_at
+            #puts "temp is more recent"
+            canceled_at = DateTime.strptime(temp_str, '%Y-%m-%d %H:%M:%S')
+            restart_id =subs['id']
+            end
+
+          
+          end
+        end
+      
+      end
+
+      if restart_id != ""
+        puts "The most recent canceled subscription is #{restart_id}"
+        puts "Restarting that subscription"
+        my_data = {}.to_json
+        my_restart = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{restart_id}/activate", :headers => $my_change_charge_header, :body => my_data)
+        puts "========================="
+        puts "Status of restarting subscription #{restart_id}: #{my_restart.inspect}"
+        puts "========================="
+        check_recharge_limits(my_restart)
+
+      else
+        puts "Sorry, there was no valid canceled subscription to restart."
+      end
+
+  end
+end
+
+
 
 class SkipPreviewMonth
   extend FixMonth
