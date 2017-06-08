@@ -47,6 +47,7 @@ module FixMonth
     my_subscription_id = ''
     orig_sub_date = ''
     three_month_box = "VIP 3 Monthly Box"
+    other_three_month = "VIP 3 Month Box"
     get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => headers)
     subscriber_info = get_sub_info.parsed_response
     #puts subscriber_info.inspect
@@ -54,7 +55,7 @@ module FixMonth
     puts subscriptions.inspect
     subscriptions.each do |subs|
         puts subs.inspect
-        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title || subs['product_title'] == three_month_box
+        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title || subs['product_title'] == three_month_box || subs['product_tite'] == other_three_month
           #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
           orig_sub_date = subs['next_charge_scheduled_at']
           my_subscription_id = subs['id']        
