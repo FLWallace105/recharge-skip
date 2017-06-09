@@ -1,5 +1,6 @@
 #recharge_listener.rb
 require 'sinatra/base'
+require 'json'
 require 'httparty'
 require 'dotenv'
 require "resque"
@@ -43,6 +44,11 @@ configure do
   $recharge_wait = ENV['RECHARGE_SLEEP_TIME']
   SHOP_WAIT = ENV['SHOPIFY_SLEEP_TIME']
   RECH_WAIT = ENV['RECHARGE_SLEEP_TIME']
+  PROD_ID = ENV['INFLUENCER_PRODUCT_ID']
+  NEW_CUST_TAGS = ENV['NEW_CUST_TAGS']
+  INFLUENCER_TAG = ENV['INFLUENCER_TAG']
+  INFLUENCER_ORDER = ENV['INFLUENCER_ORDER']
+  INFLUENCER_PRODUCT = ENV['INFLUENCER_PRODUCT']
 
 
 
@@ -52,7 +58,7 @@ def initialize
     #Dotenv.load
     @key = ENV['SHOPIFY_API_KEY']
     @secret = ENV['SHOPIFY_SHARED_SECRET'] 
-    @app_url = "staging-skip-month.herokuapp.com"
+    @app_url = "84765588.ngrok.io"
     @tokens = {}
     super
   end
@@ -133,6 +139,23 @@ post '/funky-next-month-preview' do
   status 200
   puts "Doing Funky Skip Next Month Preview"
   puts params.inspect
+
+end
+
+post '/influencer-box' do
+  content_type :application_javascript
+  status 200
+  puts "Processing Influencer Order"
+  puts params.inspect
+  Resque.enqueue(InfluencerBox, params)
+end
+
+post '/restart-customer' do
+  content_type :application_javascript
+  status 200
+  puts "Restarting Customer through Recharge API"
+  puts params.inspect
+  Resque.enqueue(ReactivateCustomer, params)
 
 end
 
@@ -377,6 +400,185 @@ helpers do
 
   end
 
+end
+
+
+class InfluencerBox
+  extend FixMonth
+  @queue = "influencer_box"
+  def self.perform(params)
+    puts "Got the following --->>>> #{params.inspect}"
+    puts "--------------"
+    myaction = params['action']
+    #puts myaction
+    if myaction == "influencer_order"
+      myformdata = params['form_data']
+      #puts myformdata.inspect
+      mysportsbra = myformdata['2']['value']
+      #puts mysportsbra
+      mytops = myformdata['3']['value']
+      #puts mytops
+      myleggings = myformdata['4']['value']
+      #puts myleggings
+      myaccessories1 = myformdata['5']['value']
+      #puts myaccessories1
+      myaccessories2 = myformdata['6']['value']
+      #puts myaccessories2
+      myfirstname = myformdata['7']['value']
+      #puts myfirstname
+      mylastname = myformdata['8']['value']
+      #puts mylastname
+      myaddress1 = myformdata['9']['value']
+      #puts myaddress1
+      myaddress2 = myformdata['10']['value']
+      #puts myaddress2
+      mycity = myformdata['11']['value']
+      #puts mycity
+      mystate = myformdata['12']['value']
+      #puts mystate
+      myzip = myformdata['13']['value']
+      #puts myzip
+      myemail = myformdata['14']['value']
+      #puts myemail
+      myphone = myformdata['15']['value']
+      #puts myphone
+      ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      my_customer = ShopifyAPI::Customer.search(query: myemail)
+      #puts my_customer.inspect
+      
+      #puts ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      #my_raw_header = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      #puts "Shopify Header Info: #{my_raw_header}"
+
+      #my_url = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      #my_addon = "/customers/search.json?query=#{myemail}"
+      #total_url = my_url + my_addon
+      #puts total_url
+      #response = HTTParty.get(total_url)
+      #puts response
+      my_raw_header = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      check_shopify_call_limit(my_raw_header, SHOP_WAIT)
+      #puts "Shopify Header Info: #{my_raw_header}"
+      
+      #puts "my_customer = #{my_customer.inspect}"
+      
+      
+      if my_customer != []
+        puts "Customer exists in Shopify. Tagging then checking for duplicate orders."
+        #returned_email = my_customer[0].attributes['email']
+        shopify_id = my_customer[0].attributes['id']
+        puts "Customer Shopify ID = #{shopify_id}"
+        customer_tags = my_customer[0].attributes['tags']
+        puts "Customer tags = #{customer_tags}"
+        #first get customer tags, then split into array, then add influencer tag, then uniq array!
+        #then join to string, then submit tag string to tag_shopify_influencer
+        tag_array = customer_tags.split(', ')
+        tag_array << INFLUENCER_TAG
+        tag_array.uniq!
+        new_cust_tags = tag_array.join(", ")
+        puts "Tagging Customer with new tags: #{new_cust_tags}"
+        tag_shopify_influencer(shopify_id, new_cust_tags, $apikey, $password, $shopname, SHOP_WAIT)
+
+
+
+        #POST /admin/orders.json
+
+        #add check to make sure influencer has only one order this month
+
+        #GET /admin/customers/#{id}/orders.json
+        puts "influencer product = #{INFLUENCER_PRODUCT}"
+        create_new_order = check_duplicate_orders(shopify_id, $apikey, $password, $shopname, INFLUENCER_PRODUCT, SHOP_WAIT)
+        puts "Create new order? #{create_new_order}"
+
+        if create_new_order
+          add_shopify_order(myemail, myaccessories1, myaccessories2, myleggings, mysportsbra, mytops, myfirstname, mylastname, myaddress1, myphone, mycity, mystate, myzip, $apikey, $password, $shopname, PROD_ID, INFLUENCER_ORDER, SHOP_WAIT)
+        else
+          puts "Duplicate orders exist for this month and year, cannot add order for this influencer"
+        end
+
+     
+      
+      
+      
+
+      else
+        puts "Customer does not exist in Shopify, adding customer through API and then adding Order"
+        #add customer here
+        shopify_id = create_shopify_influencer_cust(myfirstname, mylastname, myemail, myphone, myaddress1, myaddress2, mycity, mystate, mystate, $apikey, $password, $shopname, SHOP_WAIT)
+        puts "New customer shopify_id = #{shopify_id}"
+
+        #tag customer here
+        #NEW_CUST_TAGS
+        tag_shopify_influencer(shopify_id, NEW_CUST_TAGS, $apikey, $password, $shopname, SHOP_WAIT)
+
+
+        #add order here
+        add_shopify_order(myemail, myaccessories1, myaccessories2, myleggings, mysportsbra, mytops, myfirstname, mylastname, myaddress1, myaddress2, myphone, mycity, mystate, myzip, $apikey, $password, $shopname, PROD_ID, INFLUENCER_ORDER, SHOP_WAIT)
+        puts "Done adding order for non-registered with shopify customer."
+      end
+
+     
+
+
+    else
+      puts "Sorry, action must be influencer_order and it is #{myaction}."
+      puts "We cannot process this request."
+    end
+
+  end
+end
+
+class ReactivateCustomer
+  extend FixMonth
+  @queue = "reactivate_cust"
+  def self.perform(params)
+    puts "Got the following --> #{params.inspect}"
+    shopify_id = params['shopify_id']
+    all_subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers =>  $my_get_header)
+    
+    
+    mysubs = all_subscriptions.parsed_response['subscriptions']
+    restart_id = ""
+    canceled_at = DateTime.strptime('2005-01-01', '%Y-%m-%d')
+    
+    mysubs.each do |subs|
+      if subs['status'] == 'CANCELLED'
+        if subs['product_title'] =~ /\A3\sMonths/i || subs['product_title'] =~ /box/i
+          puts "------------"
+          puts subs.inspect
+          puts "------------"
+          temp_str = subs['cancelled_at']
+          #puts temp_str
+          temp_date = DateTime.strptime(temp_str, '%Y-%m-%d %H:%M:%S')
+          #puts temp_date.inspect
+          #puts canceled_at.inspect
+          if temp_date > canceled_at
+            #puts "temp is more recent"
+            canceled_at = DateTime.strptime(temp_str, '%Y-%m-%d %H:%M:%S')
+            restart_id =subs['id']
+            end
+
+          
+          end
+        end
+      
+      end
+
+      if restart_id != ""
+        puts "The most recent canceled subscription is #{restart_id}"
+        puts "Restarting that subscription"
+        my_data = {}.to_json
+        my_restart = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{restart_id}/activate", :headers => $my_change_charge_header, :body => my_data)
+        puts "========================="
+        puts "Status of restarting subscription #{restart_id}: #{my_restart.inspect}"
+        puts "========================="
+        check_recharge_limits(my_restart)
+
+      else
+        puts "Sorry, there was no valid canceled subscription to restart."
+      end
+
+  end
 end
 
 class SkipPreviewMonth
