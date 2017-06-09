@@ -142,6 +142,7 @@ post '/funky-next-month-preview' do
 
 end
 
+<<<<<<< HEAD
 post '/influencer-box' do
   content_type :application_javascript
   status 200
@@ -150,6 +151,8 @@ post '/influencer-box' do
   Resque.enqueue(InfluencerBox, params)
 end
 
+=======
+>>>>>>> e53e60447c2e466b2e5dc84a13fb595e81fe7055
 post '/restart-customer' do
   content_type :application_javascript
   status 200
@@ -403,6 +406,7 @@ helpers do
 end
 
 
+<<<<<<< HEAD
 class InfluencerBox
   extend FixMonth
   @queue = "influencer_box"
@@ -528,6 +532,8 @@ class InfluencerBox
   end
 end
 
+=======
+>>>>>>> e53e60447c2e466b2e5dc84a13fb595e81fe7055
 class ReactivateCustomer
   extend FixMonth
   @queue = "reactivate_cust"
@@ -581,6 +587,11 @@ class ReactivateCustomer
   end
 end
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> e53e60447c2e466b2e5dc84a13fb595e81fe7055
 class SkipPreviewMonth
   extend FixMonth
   @queue = "skip_preview_month"
@@ -862,7 +873,7 @@ class UpsellPreviewMonth
           puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
       else
           puts "OK, submitting order"
-          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => line_item_properties }.to_json
+          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "number_charges_until_expiration" => "1", "properties" => line_item_properties }.to_json
           puts data_send_to_recharge
           puts "sleeping #{RECH_WAIT}"
           sleep RECH_WAIT.to_i
@@ -954,7 +965,7 @@ class UpsellProcess
           puts "This is a duplicate order, I can't send to Recharge as there already exists an ACTIVE subscription with this variant_id #{variant_id} or title #{product_title}."
       else
           puts "OK, submitting order"
-          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => line_item_properties }.to_json
+          data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => process_order_date, "product_title" => my_product_title, "shopify_product_id" => my_product_id,  "price" => true_price, "quantity" => "#{quantity}", "shopify_variant_id" => my_true_variant_id, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "number_charges_until_expiration" => "1", "properties" => line_item_properties }.to_json
           puts data_send_to_recharge
           puts "sleeping #{RECH_WAIT}"
           sleep RECH_WAIT.to_i
@@ -1003,7 +1014,7 @@ class Upsell
         next_charge_scheduled_at_date = DateTime.strptime(next_charge, "%m-%d-%Y")
         next_charge_scheduled = next_charge_scheduled_at_date.strftime("%Y-%m-%d")
         #next_charge_scheduled = "#{next_charge_scheduled}"
-        data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price, "quantity" => quantity, "shopify_variant_id" => shopify_variant_id, "sku" => sku, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "properties" => properties}.to_json
+        data_send_to_recharge = {"address_id" => address_id, "next_charge_scheduled_at" => next_charge_scheduled, "product_title" => product_title, "price" => price, "quantity" => quantity, "shopify_variant_id" => shopify_variant_id, "sku" => sku, "order_interval_unit" => "month", "order_interval_frequency" => "1", "charge_interval_frequency" => "1", "number_charges_until_expiration" => "1", "properties" => properties}.to_json
         puts data_send_to_recharge
 
 
