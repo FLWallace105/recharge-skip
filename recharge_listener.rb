@@ -142,7 +142,6 @@ post '/funky-next-month-preview' do
 
 end
 
-<<<<<<< HEAD
 post '/influencer-box' do
   content_type :application_javascript
   status 200
@@ -151,8 +150,6 @@ post '/influencer-box' do
   Resque.enqueue(InfluencerBox, params)
 end
 
-=======
->>>>>>> e53e60447c2e466b2e5dc84a13fb595e81fe7055
 post '/restart-customer' do
   content_type :application_javascript
   status 200
@@ -406,7 +403,6 @@ helpers do
 end
 
 
-<<<<<<< HEAD
 class InfluencerBox
   extend FixMonth
   @queue = "influencer_box"
@@ -532,8 +528,6 @@ class InfluencerBox
   end
 end
 
-=======
->>>>>>> e53e60447c2e466b2e5dc84a13fb595e81fe7055
 class ReactivateCustomer
   extend FixMonth
   @queue = "reactivate_cust"
@@ -587,11 +581,6 @@ class ReactivateCustomer
   end
 end
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> e53e60447c2e466b2e5dc84a13fb595e81fe7055
 class SkipPreviewMonth
   extend FixMonth
   @queue = "skip_preview_month"
