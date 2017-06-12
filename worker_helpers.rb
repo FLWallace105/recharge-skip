@@ -310,6 +310,69 @@ module FixMonth
 
   end
 
+  def add_shopify_bottle_order(myemail, myprod, myfirstname, mylastname, myaddress1, myaddress2, myphone, mycity, mystate, myzip, apikey, password, shopname, prod_id, influencer_tag, shop_wait)
+    puts "Adding Order for Influencer -- "
+    puts "prod_id=#{prod_id}"
+    my_order = {
+             "order": {
+              "email": myemail, 
+              "tags": influencer_tag,
+              "line_items": [
+              {
+              "product_id": prod_id,
+              "quantity": 1,
+              "price": 0.00,
+              "title": myprod,
+              "name": myprod,
+              }
+            ], 
+            "customer": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "email": myemail
+    },
+    "billing_address": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "address1": myaddress1,
+      "address2": myaddress2,
+      "phone": myphone,
+      "city": mycity,
+      "province": mystate,
+      "country": "United States",
+      "zip": myzip
+    },
+    "shipping_address": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "address1": myaddress1,
+      "address2": myaddress2,
+      "phone": myphone,
+      "city": mycity,
+      "province": mystate,
+      "country": "United States",
+      "zip": myzip
+    }
+    
+            
+            }
+          }
+      
+      #puts my_order
+      my_url = "https://#{apikey}:#{password}@#{shopname}.myshopify.com/admin"
+      my_addon = "/orders.json"
+      total_url = my_url + my_addon
+      puts total_url
+      response = HTTParty.post(total_url, :body => my_order)
+      puts response
+      puts "Done adding orders, now checking for shopify call limits:"
+      headerinfo = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      check_shopify_call_limit(headerinfo, shop_wait)
+
+  end
+
+
+
   def tag_shopify_influencer(shopify_id, new_tags, apikey, password, shopname, shop_wait)
     my_customer_tag = {
              "customer":  {

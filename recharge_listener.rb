@@ -49,6 +49,8 @@ configure do
   INFLUENCER_TAG = ENV['INFLUENCER_TAG']
   INFLUENCER_ORDER = ENV['INFLUENCER_ORDER']
   INFLUENCER_PRODUCT = ENV['INFLUENCER_PRODUCT']
+  INFLUENCER_BOTTLE = ENV['INFLUENCER_BOTTLE']
+  INFLUENCER_BOTTLE_ID = ENV['INFLUENCER_BOTTLE_ID']
 
 
 
@@ -58,7 +60,7 @@ def initialize
     #Dotenv.load
     @key = ENV['SHOPIFY_API_KEY']
     @secret = ENV['SHOPIFY_SHARED_SECRET'] 
-    @app_url = "84765588.ngrok.io"
+    @app_url = "staging-skip-month.herokuapp.com"
     @tokens = {}
     super
   end
@@ -140,6 +142,14 @@ post '/funky-next-month-preview' do
   puts "Doing Funky Skip Next Month Preview"
   puts params.inspect
 
+end
+
+post '/influencer-bottle' do
+  content_type :application_javascript
+  status 200
+  puts "Processing Influencer BOTTLE Request"
+  puts params.inspect
+  Resque.enqueue(InfluencerBottle, params)
 end
 
 post '/influencer-box' do
@@ -403,6 +413,86 @@ helpers do
 end
 
 
+class InfluencerBottle
+  extend FixMonth
+  @queue = "influencer_bottle"
+  def self.perform(params)
+    puts "Received the following from influencer bottle request: ==> #{params.inspect}"
+    puts "-------------------"
+    myaction = params['action']
+    if myaction == "bottle_influencer_request"
+      formdata = params['form_data']
+      firstname = formdata['2']['value']
+      lastname = formdata['3']['value']
+      address1 = formdata['4']['value']
+      address2 = formdata['5']['value']
+      city = formdata['6']['value']
+      state = formdata['7']['value']
+      zip = formdata['8']['value']
+      email = formdata['9']['value']
+      phone = formdata['10']['value']
+      #puts "Data = #{firstname}, #{lastname}, #{address1}, #{address2}, #{city}, #{state}, #{zip}, #{email}, #{phone} -- all done!"
+      #check to see if customer exists as an upsell
+      ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      my_customer = ShopifyAPI::Customer.search(query: email)
+      my_raw_header = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      check_shopify_call_limit(my_raw_header, SHOP_WAIT)
+      if my_customer != []
+        puts "Customer exists in Shopify. Tagging then checking for duplicate orders."
+        shopify_id = my_customer[0].attributes['id']
+        puts "Customer Shopify ID = #{shopify_id}"
+        customer_tags = my_customer[0].attributes['tags']
+        puts "Customer tags = #{customer_tags}"
+        #first get customer tags, then split into array, then add influencer tag, then uniq array!
+        #then join to string, then submit tag string to tag_shopify_influencer
+        tag_array = customer_tags.split(', ')
+        tag_array << INFLUENCER_TAG
+        tag_array.uniq!
+        new_cust_tags = tag_array.join(", ")
+        puts "Tagging Customer with new tags: #{new_cust_tags}"
+        tag_shopify_influencer(shopify_id, new_cust_tags, $apikey, $password, $shopname, SHOP_WAIT)
+        #Now check for duplicate orders
+        puts "influencer bottle = #{INFLUENCER_BOTTLE}"
+        create_new_order = check_duplicate_orders(shopify_id, $apikey, $password, $shopname, INFLUENCER_BOTTLE, SHOP_WAIT)
+        puts "Create new order? #{create_new_order}"
+        if create_new_order
+          #puts "adding bottle order --"
+          add_shopify_bottle_order(email, INFLUENCER_BOTTLE, firstname, lastname, address1, address2, phone, city, state, zip, $apikey, $password, $shopname, INFLUENCER_BOTTLE_ID, INFLUENCER_ORDER, SHOP_WAIT)
+        else
+          puts "Duplicate orders exist for this month and year, cannot add order for this influencer"
+        end
+
+
+
+      else
+        puts "Customer does not exist in Shopify, adding customer through API and then adding Bottle Request."
+        #add customer here
+        shopify_id = create_shopify_influencer_cust(firstname, lastname, email, phone, address1, address2, city, state, zip, $apikey, $password, $shopname, SHOP_WAIT)
+        puts "New customer shopify_id = #{shopify_id}"
+
+        #tag customer here
+        #NEW_CUST_TAGS
+        tag_shopify_influencer(shopify_id, NEW_CUST_TAGS, $apikey, $password, $shopname, SHOP_WAIT)
+
+
+        #add order here
+        add_shopify_bottle_order(email, INFLUENCER_BOTTLE, firstname, lastname, address1, address2, phone, city, state, zip, $apikey, $password, $shopname, INFLUENCER_BOTTLE_ID, INFLUENCER_ORDER, SHOP_WAIT)
+        puts "Done adding order for non-registered with shopify customer."
+
+
+      end
+     
+
+
+    else
+      puts "The action submitted must be bottle_influencer_request and instead the action was #{myaction}"
+      puts "Sorry we cannot do anything."
+    end
+
+  end
+end
+
+
 class InfluencerBox
   extend FixMonth
   @queue = "influencer_box"
@@ -491,7 +581,7 @@ class InfluencerBox
         puts "Create new order? #{create_new_order}"
 
         if create_new_order
-          add_shopify_order(myemail, myaccessories1, myaccessories2, myleggings, mysportsbra, mytops, myfirstname, mylastname, myaddress1, myphone, mycity, mystate, myzip, $apikey, $password, $shopname, PROD_ID, INFLUENCER_ORDER, SHOP_WAIT)
+          add_shopify_order(myemail, myaccessories1, myaccessories2, myleggings, mysportsbra, mytops, myfirstname, mylastname, myaddress1, myaddress2, myphone, mycity, mystate, myzip, $apikey, $password, $shopname, PROD_ID, INFLUENCER_ORDER, SHOP_WAIT)
         else
           puts "Duplicate orders exist for this month and year, cannot add order for this influencer"
         end
