@@ -110,14 +110,7 @@ get '/auth/shopify/callback' do
     ShopifyAPI::Base.activate_session(session)
 
     # create webhook for order creation if it doesn't exist
-    if not ShopifyAPI::Webhook.find(:all).any?
-      webhook = {
-        topic: 'orders/create',
-        address: "https://#{@app_url}/giftbasket/webhook/order_create",
-        format: 'json'}
-
-      ShopifyAPI::Webhook.create(webhook)
-    end
+    
 
     
     redirect '/hello'
