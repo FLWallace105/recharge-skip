@@ -55,11 +55,7 @@ module FixMonth
     puts subscriptions.inspect
     subscriptions.each do |subs|
         puts subs.inspect
-<<<<<<< HEAD
         if subs['product_title'] =~ /\d\sMonth/i || subs['product_title'] =~ /box/i
-=======
-        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title || subs['product_title'] == three_month_box || subs['product_title'] == other_three_month
->>>>>>> d7f8008919c88e52160e9f5f96985723809dd91a
           #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
           orig_sub_date = subs['next_charge_scheduled_at']
           my_subscription_id = subs['id']        
