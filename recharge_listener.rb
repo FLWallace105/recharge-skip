@@ -404,7 +404,7 @@ class ReactivateCustomer
     
     mysubs.each do |subs|
       if subs['status'] == 'CANCELLED'
-        if subs['product_title'] =~ /\A3\sMonths/i || subs['product_title'] =~ /box/i
+        if subs['product_title'] =~ /\d\sMonth/i || subs['product_title'] =~ /box/i
           puts "------------"
           puts subs.inspect
           puts "------------"

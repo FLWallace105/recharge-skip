@@ -54,7 +54,7 @@ module FixMonth
     puts subscriptions.inspect
     subscriptions.each do |subs|
         puts subs.inspect
-        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title || subs['product_title'] == three_month_box
+        if subs['product_title'] =~ /\d\sMonth/i || subs['product_title'] =~ /box/i
           #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
           orig_sub_date = subs['next_charge_scheduled_at']
           my_subscription_id = subs['id']        
@@ -170,7 +170,7 @@ module FixMonth
           puts "Sorry, duplicate order for title, looks like you already added a variant with this title!"
           submit_order_flag = false
         #Check to see if ship date for a Monthly Box or some variant of Monthly Box has passed
-      elsif (local_product_title == "Monthly Box" || local_product_title == alt_vip_title || local_product_title == alt_title || local_product_title == three_month_box || local_product_title == old_three_month_box) && local_status == "ACTIVE"
+      elsif (local_product_title =~ /\d\sMonth/i || local_product_title =~ /box/i) && local_status == "ACTIVE"
           #Only if they have a Monthly box can they add on an order duh!
           submit_order_flag = true
           local_charge_date = mysub['next_charge_scheduled_at']
