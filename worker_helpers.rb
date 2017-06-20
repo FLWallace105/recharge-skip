@@ -46,6 +46,7 @@ module FixMonth
   def request_subscriber_id(shopify_id, headers, alt_title)
     my_subscription_id = ''
     orig_sub_date = ''
+    other_three_month = "VIP 3 Month Box"
     three_month_box = "VIP 3 Monthly Box"
     get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => headers)
     subscriber_info = get_sub_info.parsed_response
@@ -54,7 +55,11 @@ module FixMonth
     puts subscriptions.inspect
     subscriptions.each do |subs|
         puts subs.inspect
+<<<<<<< HEAD
         if subs['product_title'] =~ /\d\sMonth/i || subs['product_title'] =~ /box/i
+=======
+        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title || subs['product_title'] == three_month_box || subs['product_title'] == other_three_month
+>>>>>>> d7f8008919c88e52160e9f5f96985723809dd91a
           #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
           orig_sub_date = subs['next_charge_scheduled_at']
           my_subscription_id = subs['id']        
@@ -222,5 +227,277 @@ module FixMonth
       end
 
   end
+
+  def add_shopify_order(myemail, myaccessories1, myaccessories2, myleggings, mysportsbra, mytops, myfirstname, mylastname, myaddress1, myaddress2, myphone, mycity, mystate, myzip, apikey, password, shopname, prod_id, influencer_tag, shop_wait)
+    puts "Adding Order for Influencer -- "
+    puts "prod_id=#{prod_id}"
+    my_order = {
+             "order": {
+              "email": myemail, 
+              "tags": influencer_tag,
+              "line_items": [
+              {
+              "product_id": prod_id,
+              "quantity": 1,
+              "price": 0.00,
+              "title": "Monthly Box",
+              "properties": [
+                    {
+                        "name": "accessories",
+                        "value": myaccessories1
+                    },
+                    {
+                        "name": "equipment",
+                        "value": myaccessories2
+                    },
+                    {
+                        "name": "leggings",
+                        "value": myleggings
+                    },
+                    {
+                        "name": "main-product",
+                        "value": "true"
+                    },                    
+                    {
+                        "name": "sports-bra",
+                        "value": mysportsbra
+                    },
+                    {
+                        "name": "tops",
+                        "value": mytops
+                    }
+                ]
+              }
+            ], 
+            "customer": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "email": myemail
+    },
+    "billing_address": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "address1": myaddress1,
+      "address2": myaddress2,
+      "phone": myphone,
+      "city": mycity,
+      "province": mystate,
+      "country": "United States",
+      "zip": myzip
+    },
+    "shipping_address": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "address1": myaddress1,
+      "address2": myaddress2,
+      "phone": myphone,
+      "city": mycity,
+      "province": mystate,
+      "country": "United States",
+      "zip": myzip
+    }
+    
+            
+            }
+          }
+      
+      #puts my_order
+      my_url = "https://#{apikey}:#{password}@#{shopname}.myshopify.com/admin"
+      my_addon = "/orders.json"
+      total_url = my_url + my_addon
+      puts total_url
+      response = HTTParty.post(total_url, :body => my_order)
+      puts response
+      puts "Done adding orders, now checking for shopify call limits:"
+      headerinfo = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      check_shopify_call_limit(headerinfo, shop_wait)
+
+  end
+
+  def add_shopify_bottle_order(myemail, myprod, myfirstname, mylastname, myaddress1, myaddress2, myphone, mycity, mystate, myzip, apikey, password, shopname, prod_id, influencer_tag, shop_wait)
+    puts "Adding Order for Influencer -- "
+    puts "prod_id=#{prod_id}"
+    my_order = {
+             "order": {
+              "email": myemail, 
+              "tags": influencer_tag,
+              "line_items": [
+              {
+              "product_id": prod_id,
+              "quantity": 1,
+              "price": 0.00,
+              "title": myprod,
+              "name": myprod,
+              }
+            ], 
+            "customer": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "email": myemail
+    },
+    "billing_address": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "address1": myaddress1,
+      "address2": myaddress2,
+      "phone": myphone,
+      "city": mycity,
+      "province": mystate,
+      "country": "United States",
+      "zip": myzip
+    },
+    "shipping_address": {
+      "first_name": myfirstname,
+      "last_name": mylastname,
+      "address1": myaddress1,
+      "address2": myaddress2,
+      "phone": myphone,
+      "city": mycity,
+      "province": mystate,
+      "country": "United States",
+      "zip": myzip
+    }
+    
+            
+            }
+          }
+      
+      #puts my_order
+      my_url = "https://#{apikey}:#{password}@#{shopname}.myshopify.com/admin"
+      my_addon = "/orders.json"
+      total_url = my_url + my_addon
+      puts total_url
+      response = HTTParty.post(total_url, :body => my_order)
+      puts response
+      puts "Done adding orders, now checking for shopify call limits:"
+      headerinfo = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      check_shopify_call_limit(headerinfo, shop_wait)
+
+  end
+
+
+
+  def tag_shopify_influencer(shopify_id, new_tags, apikey, password, shopname, shop_wait)
+    my_customer_tag = {
+             "customer":  {
+             "id": shopify_id,
+              
+              "tags": new_tags,
+              "note": "Influencer done through API"
+              }
+            }
+      my_url = "https://#{apikey}:#{password}@#{shopname}.myshopify.com/admin"
+      my_addon = "/customers/#{shopify_id}.json"
+      total_url = my_url + my_addon
+      puts "Tagging Customer"
+      puts total_url
+      puts my_customer_tag
+      tag_response = HTTParty.put(total_url, :body => my_customer_tag)
+      puts tag_response
+      #Get header response
+      headerinfo = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+      check_shopify_call_limit(headerinfo, shop_wait)
+      puts "Done adding customer tags"
+
+  end
+
+  def create_shopify_influencer_cust(firstname, lastname, email, phone, address1, address2, city, state, zip, apikey, password, shopname, shop_wait)
+    #POST /admin/customers.json
+    my_new_customer = {
+            "customer": {
+            "first_name": firstname,
+            "last_name": lastname,
+            "email": email,
+            "phone": phone,
+            
+            "addresses": [
+            {
+              "address1": address1,
+              "address2": address2,
+              "city": city,
+              "province": state,
+              "phone": phone,
+              "zip": zip,
+              "last_name": lastname,
+              "first_name": firstname,
+              "country": "United States"
+            }
+          ]
+    
+        }
+      }
+  
+  my_url = "https://#{apikey}:#{password}@#{shopname}.myshopify.com/admin"
+  my_addon = "/customers.json"
+  total_url = my_url + my_addon
+  puts "Adding new influencer"
+  puts total_url
+  puts my_new_customer
+  customer_response = HTTParty.post(total_url, :body => my_new_customer)
+  puts customer_response
+  puts "Done adding new influencer, now checking shopify call limits:"
+  headerinfo = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+  check_shopify_call_limit(headerinfo, shop_wait)
+  customer_id = customer_response['customer']['id']
+  return customer_id
+
+
+end
+
+def check_duplicate_orders(shopify_id, apikey, password, shopname, influencer_product, shop_wait)
+  #GET /admin/customers/#{id}/orders.json
+  my_url = "https://#{apikey}:#{password}@#{shopname}.myshopify.com/admin"
+  my_addon = "/customers/#{shopify_id}/orders.json"
+  total_url = my_url + my_addon
+  puts total_url
+  puts "Checking for duplicate orders"
+  customer_orders = HTTParty.get(total_url)
+  headerinfo = ShopifyAPI::response.header["HTTP_X_SHOPIFY_SHOP_API_CALL_LIMIT"]
+  check_shopify_call_limit(headerinfo, shop_wait)
+  #puts customer_orders
+  #Get today's date
+  my_today = Date.today
+  my_current_year = my_today.strftime('%Y')
+  my_current_month = my_today.strftime('%B')
+  my_current = "#{my_current_month}-#{my_current_year}"
+  create_new_order = true
+
+  puts "-----------------------"
+  my_orders = customer_orders['orders']
+  my_orders.each do |orderinfo|
+      puts "----------------"
+      #puts JSON.pretty_generate(orderinfo, {:indent => "\t"})
+      created_at = orderinfo['created_at']
+      order_name = orderinfo['name']
+      order_created_at = DateTime.strptime(created_at, '%Y-%m-%dT%H:%M:%S')
+      order_year = order_created_at.strftime('%Y')
+      order_month = order_created_at.strftime('%B')
+      order_current = "#{order_month}-#{order_year}"
+      puts "Information for order #{order_name}:"
+      puts "Order Created -> #{order_current}, Now => #{my_current}"
+      order_title = orderinfo['line_items'][0]['title']
+      puts "order_title = #{order_title}, checking against product #{influencer_product}"
+      if order_current == my_current && order_title == influencer_product
+        create_new_order = false
+      end
+      puts "================"
+    end
+return create_new_order
+
+end
+
+def check_shopify_call_limit(headerinfo, shop_wait)
+  puts "raw Shopify call limit info: #{headerinfo}"
+  header_data = headerinfo.split('/')
+  my_numerator = header_data[0].to_i
+  my_denominator = header_data[1].to_i
+  percentage = (my_numerator/my_denominator.to_f).round(2)
+  puts "Used #{percentage} of Shopify call limits"
+  if percentage >= 0.7
+    puts "Sleeping #{shop_wait}"
+    sleep shop_wait
+  end
+
+end
 
 end
