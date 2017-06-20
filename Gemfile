@@ -6,4 +6,4 @@ gem 'httparty'
 gem 'dotenv'
 gem "resque"
 gem "shopify_api"
-gem "active_support"
+gem "activesupport"
