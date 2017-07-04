@@ -662,15 +662,23 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
 
           elsif action == "skip_month"
             #skip to next month
+            puts "Attempting to skip to next month for 3 month box"
             next_month_date = scheduled_date >> 1
             next_month_str = next_month_date.strftime("%Y-%m-%d")
+            puts "Next month skip date is #{next_month_str}"
             #puts next_month_str
             body = {
                   "shipping_date" => next_month_str
                      }
               body = body.to_json
+            
+            puts body
+            local_created_at_year = created_date.strftime("%Y").to_i
+            local_scheduled_at_year = scheduled_date.strftime("%Y").to_i
+            local_created_at_month = created_date.strftime("%m").to_i
+           
 
-              if num_days > end_of_month
+            if (current_year > local_created_at_year) || (local_created_at_month <= prev_month_int)
                 change_order_date = HTTParty.post("https://api.rechargeapps.com/orders/#{my_order_id}/change_date", :headers => my_change_charge_header, :body => body)
                 check_recharge_limits(change_order_date)
                 puts change_order_date.inspect
