@@ -5,5 +5,5 @@ gem 'puma'
 gem 'httparty'
 gem 'dotenv'
 gem "resque"
-gem "shopify_api"
-gem "activesupport"
+gem 'activeresource', github: 'rails/activeresource'
+gem 'shopify_api', '~> 4.3'

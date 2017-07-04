@@ -187,7 +187,7 @@ end
 post '/recharge' do
   content_type :application_javascript
   status 200
-  puts "doing GET stuff"
+  puts "Processing Skip Month Request"
   puts params.inspect
   shopify_id = params['shopify_id']
   puts shopify_id
@@ -196,7 +196,8 @@ post '/recharge' do
   #stuff below for Heroku
   Resque.redis = REDIS
   skip_month_data = {'shopify_id' => shopify_id, 'action' => action}
-  Resque.enqueue(SkipMonth, skip_month_data)
+  #Resque.enqueue(SkipMonth, skip_month_data)
+  Resque.enqueue(ChooseDate, skip_month_data)
 
 
 end
@@ -980,12 +981,15 @@ class UpsellProcess
       puts "processing customer upsell products"
       cust_id = request_recharge_id(shopify_id, $my_get_header)
       puts "cust_id =#{cust_id}"
-      address_id = request_address_id(cust_id, $my_get_header)
+      address_id_array = request_address_id(cust_id, $my_get_header)
+      address_id = address_id_array[0]
+      puts "Using address_id #{address_id}"
+
       #New code 5-8-17: take variant_id and request to Shopify
       #Product_title, product_id, price
       #puts "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
       ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
-      #puts "OK HERE"
+      puts "OK HERE"
       my_variant = ShopifyAPI::Variant.find(variant_id)
       puts "found variant #{my_variant.id}"
       my_customer_size = my_variant.option1
@@ -1190,50 +1194,44 @@ class ChooseDate
     puts "action = #{action}"
     my_today_date = Date.today
     puts "Today's Date is #{my_today_date.to_s}"
-    if action == 'change_date'
+    if action == 'change_date' || action == 'skip_month'
       puts "Changing the date for charge/shipping"
+      my_recharge_id = find_subscriber_id(shopify_id, $my_get_header)
       #Get alt_title
       current_month = Date.today.strftime("%B")
-      alt_title = "#{current_month} VIP Box"
-      orig_sub_date = ""
-      my_subscription_id = ''
-      plain_title = "#{current_month} Box"
-      alt_title = "#{current_month} VIP Box"
-      three_month_box = "VIP 3 Monthly Box"
-      old_three_month_box = "VIP 3 Month Box"
-      orig_sub_date = ""
-      my_subscription_id = ''
-      get_sub_info = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
-      mysubs = get_sub_info.parsed_response
-      puts mysubs
-      puts "Must sleep for #{RECH_WAIT} seconds"
-      sleep RECH_WAIT.to_i
-      subsonly = mysubs['subscriptions']
-      subsonly.each do |subs|
-        if subs['status'] != "CANCELLED"
-            product_title = subs['product_title']
-            if product_title == "VIP 3 Monthly Box" || product_title == "Monthly Box" || product_title ==   alt_title || product_title = plain_title || product_title == old_three_month_box
-              puts subs.inspect
-              my_subscription_id = subs['id']
-              orig_sub_date = subs['next_charge_scheduled_at']
-              puts "subscription created at #{subs['created_at']}"
-              temp_sub_created = subs['created_at'].split('T')
-              my_temp_sub_create = temp_sub_created[0]
-              puts my_temp_sub_create
-              subscription_created_at = Date.parse(my_temp_sub_create)
-              sub_created_at_str = subscription_created_at.strftime('%B')
-              today_str = my_today_date.strftime('%B')
-              puts "Subscription created at: #{sub_created_at_str}, today month is #{today_str}"
-              puts "#{my_subscription_id}, #{orig_sub_date}"
-              if today_str != sub_created_at_str
-                check_change_date_ok(current_month, my_subscription_id, orig_sub_date, new_date,$my_change_charge_header)
-              elsif
-                puts "We cannot change date, today month is #{today_str} and subscription_created_at is month #{sub_created_at_str} "
-                end
-              end
-          end
-        end
 
+      
+      #Get all three month subscriptions that are active and then send them to find_customer_orders_three
+      #Which checks against subscription_array for valid ids and then checks for valid skip or change dates
+      #And also creation_date (nothing happens if order created this month)
+      subscription_array_three = Array.new
+      subscription_array_three = return_valid_subscription_ids_threemonths(shopify_id, $my_get_header)
+      if !subscription_array_three.empty?
+        puts "Found valid subscriptions #{subscription_array_three.inspect}"
+        #below handles three month box only
+
+        #my_recharge_id = find_subscriber_id(shopify_id, $my_get_header)
+        find_all_customer_orders_three(my_recharge_id, $my_get_header, $my_change_charge_header, my_today_date, current_month, new_date, action, subscription_array_three)
+        puts "Done with change date request for customer for 3 Month Subscription!"
+      else
+        puts "There are no 3 month subscriptions for this customer."
+      end
+      # Now handle one month subscriptions
+      subscription_array_one = Array.new
+      subscription_array_one = return_valid_subscription_ids_onemonths(shopify_id, $my_get_header)
+      if !subscription_array_one.empty?
+        puts "Found valid subscriptions #{subscription_array_one.inspect}"
+        last_day_current_month = Date.today.end_of_month
+        #puts last_day_current_month.inspect
+        find_all_customer_charges_one(my_recharge_id, $my_get_header, $my_change_charge_header, my_today_date, current_month, new_date, action, subscription_array_one)
+        puts "Done with change date request for customer for Monthly Box Subscription!"
+
+      else
+        puts "There are no one month subscriptions for this customer"
+      end
+
+
+   
 
     else
       puts "Action must be change_date, and action is #{action} so we can't do anything."
