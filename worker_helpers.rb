@@ -586,8 +586,10 @@ end
 def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_header, my_today_date, current_month, new_date, action, subscription_array_three)
     #GET /orders?customer_id=123
     last_day_current_month = Date.today.end_of_month
+    first_day_current_month = Date.today.beginning_of_month
     last_day_current_query = last_day_current_month.strftime("%Y-%m-%d")
-    orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_max=#{last_day_current_query}", :headers => my_get_header)
+    first_day_current_query = first_day_current_month.strftime("%Y-%m-%d")
+    orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_min=#{first_day_current_query}&date_max=#{last_day_current_query}", :headers => my_get_header)
     #puts orders.inspect
     check_recharge_limits(orders)
     order_data = orders.parsed_response['orders']
