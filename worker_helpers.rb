@@ -575,7 +575,7 @@ def find_subscriber_id(shopify_id, my_get_header)
   customer = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
   check_recharge_limits(customer)
   customer_data = customer.parsed_response
-  #puts customer_data.inspect
+  puts customer_data.inspect
   recharge_customer_id = customer_data['customers'][0]['id']
   #puts recharge_customer_id.inspect
   puts "Found Recharge Customer ID #{recharge_customer_id}"
