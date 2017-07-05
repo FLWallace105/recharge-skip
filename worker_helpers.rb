@@ -597,7 +597,7 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
     prev_month_int = prev_month.strftime("%m").to_i
     current_year = my_today_date.strftime("%Y").to_i
     
-    
+    #code.
     #puts order_info.inspect
     #puts "HALLOOOOOOO"
     #puts my_order_stuff.inspect
