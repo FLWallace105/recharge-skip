@@ -591,13 +591,13 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
     #puts orders.inspect
     check_recharge_limits(orders)
     order_data = orders.parsed_response['orders']
-    puts order_data
+    puts "ORDER DATA ---------> #{order_data}"
     puts "action is #{action}"
     prev_month = my_today_date << 1
     prev_month_int = prev_month.strftime("%m").to_i
     current_year = my_today_date.strftime("%Y").to_i
     
-    #code.
+    puts "Working on three month box subscription change date"
     #puts order_info.inspect
     #puts "HALLOOOOOOO"
     #puts my_order_stuff.inspect
