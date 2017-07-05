@@ -575,7 +575,7 @@ def find_subscriber_id(shopify_id, my_get_header)
   customer = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
   check_recharge_limits(customer)
   customer_data = customer.parsed_response
-  puts customer_data.inspect
+  #puts customer_data.inspect
   recharge_customer_id = customer_data['customers'][0]['id']
   #puts recharge_customer_id.inspect
   puts "Found Recharge Customer ID #{recharge_customer_id}"
@@ -586,7 +586,7 @@ end
 def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_header, my_today_date, current_month, new_date, action, subscription_array_three)
     #GET /orders?customer_id=123
     last_day_current_month = Date.today.end_of_month
-    first_day_current_month = Date.today.beginning_of_month
+    first_day_current_month = Date.today
     last_day_current_query = last_day_current_month.strftime("%Y-%m-%d")
     first_day_current_query = first_day_current_month.strftime("%Y-%m-%d")
     orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_min=#{first_day_current_query}", :headers => my_get_header)
