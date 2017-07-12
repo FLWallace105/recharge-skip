@@ -1,0 +1,17 @@
+development:
+  adapter: postgresql
+  encoding: unicode
+  database: access_code
+  pool: 2
+  username: <%= ENV['PG_USER'] %>
+  password: <%= ENV['PG_PASS'] %>
+  host: localhost
+
+  development:
+  adapter: postgresql
+  encoding: unicode
+  database: access_code
+  pool: 2
+  username: <%= ENV['PG_USER'] %>
+  password: <%= ENV['PG_PASS'] %>
+  host: localhost

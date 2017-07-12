@@ -6,3 +6,7 @@ gem 'httparty'
 gem 'dotenv'
 gem "resque"
 gem "shopify_api"
+gem 'activerecord'
+gem 'sinatra-activerecord'
+gem 'pg'
+gem "activesupport"

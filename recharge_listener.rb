@@ -7,9 +7,18 @@ require "resque"
 require 'shopify_api'
 require 'active_support/core_ext'
 
+require 'sinatra/activerecord'
+
+require './models/model'
+
+
 require_relative 'worker_helpers'
 
+
+
 class SkipIt < Sinatra::Base
+
+  register Sinatra::ActiveRecordExtension
 
 
 configure do
@@ -507,24 +516,61 @@ class InfluencerBox
       #puts myaccessories1
       myaccessories2 = myformdata['6']['value']
       #puts myaccessories2
-      myfirstname = myformdata['7']['value']
+      myaccess_code = myformdata['7']['value']
+      myfirstname = myformdata['8']['value']
       #puts myfirstname
-      mylastname = myformdata['8']['value']
+      mylastname = myformdata['9']['value']
       #puts mylastname
-      myaddress1 = myformdata['9']['value']
+      myaddress1 = myformdata['10']['value']
       #puts myaddress1
-      myaddress2 = myformdata['10']['value']
+      myaddress2 = myformdata['11']['value']
       #puts myaddress2
-      mycity = myformdata['11']['value']
+      mycity = myformdata['12']['value']
       #puts mycity
-      mystate = myformdata['12']['value']
+      mystate = myformdata['13']['value']
       #puts mystate
-      myzip = myformdata['13']['value']
+      myzip = myformdata['14']['value']
       #puts myzip
-      myemail = myformdata['14']['value']
+      myemail = myformdata['15']['value']
       #puts myemail
-      myphone = myformdata['15']['value']
+      myphone = myformdata['16']['value']
       #puts myphone
+      #First, check access code to see if it exists.
+      #@code = ticket.find(myaccess_code)
+      puts "Incoming Code is #{myaccess_code}"
+      ticket = Tickets.where("influencer_code = ?", myaccess_code)
+      puts ticket.inspect
+      code_exists = ticket.exists?
+      puts "Does code exist in database? : #{code_exists}"
+      my_continue = false
+      if code_exists == true
+        
+        puts "Got here eh."
+        my_code = ticket[0]['influencer_code']
+        #my_used =  ticket.inspect
+        puts "code = #{my_code}"
+        my_used = ticket[0]['code_used']
+        my_id = ticket[0]['id']
+        puts "Here now"
+        puts "my_id = #{my_id}"
+        puts my_used.inspect
+        #code_used_already = ticket.code_used
+        #puts code_used_already
+        #puts "Code exists"
+        if my_used == false
+          puts "Allowing user to submit an influencer box request."
+          my_continue = true
+          #ticket.code_used = "t"
+          #ticket.save
+          #ticket.update_attributes(code_used: true)
+          #Tickets.update(my_id, true)
+          #ticket.attribute = true
+          #ticket.save(:validate => false)
+          Tickets.where(id: my_id).update_all(code_used: true)
+        end
+      end
+
+      if my_continue
       ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
       my_customer = ShopifyAPI::Customer.search(query: myemail)
       #puts my_customer.inspect
@@ -600,6 +646,9 @@ class InfluencerBox
         puts "Done adding order for non-registered with shopify customer."
       end
 
+      else  
+        puts "No valid access code for this product. Sorry cannot add influencer order"
+      end #my_continue
      
 
 
