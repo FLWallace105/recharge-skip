@@ -55,7 +55,7 @@ module FixMonth
     puts subscriptions.inspect
     subscriptions.each do |subs|
         puts subs.inspect
-        if subs['product_title'] == "Monthly Box" || subs['product_title'] == alt_title || subs['product_title'] == three_month_box || subs['product_title'] == other_three_month
+        if subs['product_title'] =~ /\d\sMonth/i || subs['product_title'] =~ /box/i
           #puts "Subscription scheduled at: #{subs['next_charge_scheduled_at']}"
           orig_sub_date = subs['next_charge_scheduled_at']
           my_subscription_id = subs['id']        
@@ -133,11 +133,20 @@ module FixMonth
     customer_addresses = HTTParty.get("https://api.rechargeapps.com/customers/#{cust_id}/addresses", :headers => my_get_header)
     my_addresses = customer_addresses.parsed_response
     puts my_addresses.inspect
-    address_id = my_addresses['addresses'][0]['id']
-    puts "address_id = #{address_id}"
-    puts "Must sleep 3 seconds"
-    sleep 3
-    return address_id
+    many_addresses = my_addresses['addresses']
+    base_address_array = []
+    many_addresses.each do |myadd|
+      #puts myadd.inspect
+      puts "Address ID: #{myadd['id']}"
+      base_address_array.push(myadd['id'])
+
+      end
+    #address_id = my_addresses['addresses'][0]['id']
+    #puts "address_id = #{address_id}"
+    #puts "Must sleep 3 seconds"
+    #sleep 3
+    puts base_address_array.inspect
+    return base_address_array
   end
 
   def check_for_duplicate_subscription(shopify_id, shopify_variant_id, product_title, my_get_header, preview)
@@ -171,7 +180,7 @@ module FixMonth
           puts "Sorry, duplicate order for title, looks like you already added a variant with this title!"
           submit_order_flag = false
         #Check to see if ship date for a Monthly Box or some variant of Monthly Box has passed
-      elsif (local_product_title == "Monthly Box" || local_product_title == alt_vip_title || local_product_title == alt_title || local_product_title == three_month_box || local_product_title == old_three_month_box) && local_status == "ACTIVE"
+      elsif (local_product_title =~ /\d\sMonth/i || local_product_title =~ /box/i) && local_status == "ACTIVE"
           #Only if they have a Monthly box can they add on an order duh!
           submit_order_flag = true
           local_charge_date = mysub['next_charge_scheduled_at']
@@ -495,5 +504,315 @@ def check_shopify_call_limit(headerinfo, shop_wait)
   end
 
 end
+
+def return_valid_subscription_ids_threemonths(shopify_id, my_get_header)
+
+my_valid_subscription_ids = Array.new
+puts "inside three months helper"
+subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
+check_recharge_limits(subscriptions)
+#puts subscriptions.inspect
+#puts subscriptions.parsed_response['subscriptions']
+mysubscription = subscriptions.parsed_response['subscriptions']
+#puts "--------------"
+#puts mysubscription.inspect
+#puts "-------------"
+#puts mysubscription.length
+
+mysubscription.length.times do |i|
+  puts "********************"
+  puts mysubscription[i]
+  puts "*******************"
+  id = mysubscription[i]['id']
+  status = mysubscription[i]['status']
+  product_title = mysubscription[i]['product_title']
+  charge_interval_frequency = mysubscription[i]['charge_interval_frequency'].to_i
+  if status == "ACTIVE" && charge_interval_frequency == 3
+    puts "#{id}, #{status}, #{product_title}"
+    puts "Adding #{id} to valid subscription_ids for three months"
+    my_valid_subscription_ids.push(id)
+  end
+  
+end
+
+
+  return my_valid_subscription_ids
+end
+
+def return_valid_subscription_ids_onemonths(shopify_id, my_get_header)
+
+my_valid_subscription_ids = Array.new
+#puts "inside helper"
+subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
+check_recharge_limits(subscriptions)
+
+subscriptions.parsed_response['subscriptions'].each do |mysub|
+  #puts mysub.inspect
+  id = mysub['id']
+  status = mysub['status']
+  product_title = mysub['product_title']
+  order_interval_unit = mysub['order_interval_unit']
+  order_interval_frequency = mysub['order_interval_frequency']
+  charge_interval_frequency = mysub['charge_interval_frequency'].to_i
+  if status == "ACTIVE"
+    puts "#{id}, #{status}, #{product_title}"
+    if charge_interval_frequency == 1
+      puts "Adding #{id} to valid subscription_ids for one months"
+      my_valid_subscription_ids.push(id)
+      end
+    end
+  #puts my_valid_subscription_ids.inspect
+  return my_valid_subscription_ids
+  end
+end
+
+
+
+
+def find_subscriber_id(shopify_id, my_get_header)
+  #GET /customers?shopify_customer_id=98273498 
+  #puts "Got here folks"
+  customer = HTTParty.get("https://api.rechargeapps.com/customers?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
+  check_recharge_limits(customer)
+  customer_data = customer.parsed_response
+  #puts customer_data.inspect
+  recharge_customer_id = customer_data['customers'][0]['id']
+  #puts recharge_customer_id.inspect
+  puts "Found Recharge Customer ID #{recharge_customer_id}"
+  return recharge_customer_id
+
+end
+
+def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_header, my_today_date, current_month, new_date, action, subscription_array_three)
+    #GET /orders?customer_id=123
+    last_day_current_month = Date.today.end_of_month
+    first_day_current_month = Date.today
+    last_day_current_query = last_day_current_month.strftime("%Y-%m-%d")
+    first_day_current_query = first_day_current_month.strftime("%Y-%m-%d")
+    orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_min=#{first_day_current_query}", :headers => my_get_header)
+    #puts orders.inspect
+    check_recharge_limits(orders)
+    order_data = orders.parsed_response['orders']
+    puts "ORDER DATA ---------> #{order_data}"
+    puts "action is #{action}"
+    prev_month = my_today_date << 1
+    prev_month_int = prev_month.strftime("%m").to_i
+    current_year = my_today_date.strftime("%Y").to_i
+    
+    puts "Working on three month box subscription change date"
+    #puts order_info.inspect
+    #puts "HALLOOOOOOO"
+    #puts my_order_stuff.inspect
+    order_data.each do |myord|
+      puts "--------------------"
+      puts myord.inspect
+      puts "--------------------"
+      my_order_id = myord['id']
+      scheduled_at = myord['scheduled_at']
+      scheduled_date = DateTime.strptime(scheduled_at, '%Y-%m-%dT%H:%M:%S')
+      product_title = myord['line_items'][0]['title']
+      local_subscription_id = myord['line_items'][0]['subscription_id']
+      created_at = myord['created_at']
+      created_date = DateTime.strptime(created_at, '%Y-%m-%dT%H:%M:%S')
+      num_days = scheduled_date - created_date
+      
+      puts "Order ID        Scheduled AT          Product Title"
+      puts "----------------------------------------------------"
+      puts "#{my_order_id}, #{scheduled_at}, #{product_title}"
+      puts "----------------------------------------------------"
+      #check to see if title is proper, i.e. it has the regexp match to digit months or box
+
+      if subscription_array_three.include? local_subscription_id
+        puts "Because title has box or digit/month in it processing #{my_order_id} ..."
+        
+        if scheduled_date <= my_today_date
+          puts "order #{my_order_id} is #{scheduled_at} which is today or earlier, can't process for change ship date"
+        else
+          puts "Checking order #{my_order_id} .."
+          #current_month
+          order_month = scheduled_date.strftime("%B")
+          if order_month == current_month
+            puts "processing change shipment date request for #{my_order_id} with scheduled_at date #{scheduled_at}"
+            #call to recharge here
+            #POST /orders/<order_id>/change_date
+
+            #here we switch actions between changing ship date and skipping to next month
+            if action == "change_date"
+              body = {
+                  "shipping_date" => new_date
+                     }
+              body = body.to_json
+            
+            puts body
+            local_created_at_year = created_date.strftime("%Y").to_i
+            local_scheduled_at_year = scheduled_date.strftime("%Y").to_i
+            local_created_at_month = created_date.strftime("%m").to_i
+            #puts local_created_at_year
+            #puts local_scheduled_at_year
+            #puts local_created_at_month
+            if (current_year > local_created_at_year) || (local_created_at_month <= prev_month_int)
+        
+            
+
+
+              change_order_date = HTTParty.post("https://api.rechargeapps.com/orders/#{my_order_id}/change_date", :headers => my_change_charge_header, :body => body)
+              check_recharge_limits(change_order_date)
+              puts change_order_date.inspect
+            else
+              puts "Sorry can't change date, this order was created this month: #{created_at}"
+            end
+
+          elsif action == "skip_month"
+            #skip to next month
+            puts "Attempting to skip to next month for 3 month box"
+            next_month_date = scheduled_date >> 1
+            next_month_str = next_month_date.strftime("%Y-%m-%d")
+            puts "Next month skip date is #{next_month_str}"
+            #puts next_month_str
+            body = {
+                  "shipping_date" => next_month_str
+                     }
+              body = body.to_json
+            
+            puts body
+            local_created_at_year = created_date.strftime("%Y").to_i
+            local_scheduled_at_year = scheduled_date.strftime("%Y").to_i
+            local_created_at_month = created_date.strftime("%m").to_i
+           
+
+            if (current_year > local_created_at_year) || (local_created_at_month <= prev_month_int)
+                change_order_date = HTTParty.post("https://api.rechargeapps.com/orders/#{my_order_id}/change_date", :headers => my_change_charge_header, :body => body)
+                check_recharge_limits(change_order_date)
+                puts change_order_date.inspect
+
+              else
+                puts "Sorry can't change date, this order was created this month: #{created_at}"
+              end
+
+
+
+          
+          end
+
+          else
+            puts "Sorry the scheduled date is #{scheduled_at}, which is next month or later, can't process change date request"
+          end
+
+
+        end
+
+
+      end
+
+      puts ""
+      end
+ 
+
+
+end
+
+def find_all_customer_charges_one(recharge_id, my_get_header, my_change_charge_header, my_today_date, current_month, new_date, action, subscription_array_one)
+    puts "Looking at One Month Subscriptions"
+
+    #GET /charges?subscription_id=14562
+    charge_array = Array.new
+    subs_hash = Hash.new
+    this_month = Date.today
+    prev_month = this_month << 1
+    #puts "prev month = #{prev_month.inspect}"
+    prev_month_int = this_month.strftime("%m").to_i
+    today_query = my_today_date.strftime("%Y-%m-%d")
+    #puts today_query.inspect
+    #get last day of the month
+    last_day_previous_month = prev_month.end_of_month
+    end_prior_month_query = last_day_previous_month.strftime("%Y-%m-%d")
+    last_day_current_month = Date.today.end_of_month
+    last_day_current_query = last_day_current_month.strftime("%Y-%m-%d")
+    #puts end_month_query.inspect
+    #puts subscription_array_one.inspect
+    subscription_array_one.each do |subsid|
+      #puts subsid
+      #puts "https://api.rechargeapps.com/charges?subscription_id=#{subsid}&date_min=#{today_query}&date_max=#{end_month_query}"
+      #GET /orders?status=queued
+      #GET /orders?customer_id=123
+      #GET /orders?created_at_min=2016-05-18&created_at_max=2016-06-18
+
+      #GET /charges?subscription_id=14562
+
+      #GET /charges?date_min=2016-05-18&date_max=2016-06-18
+
+
+
+      charges = HTTParty.get("https://api.rechargeapps.com/charges?subscription_id=#{subsid}&date_min=#{today_query}&date_max=#{last_day_current_query}", :headers => my_get_header)
+      #puts charges.inspect
+      check_recharge_limits(charges)
+      if charges.parsed_response['charges'] != []
+        charges_data = charges.parsed_response
+        puts charges_data['charges'].inspect
+        puts "------------------"
+        
+
+        #loop through order data
+        charges_data['charges'].each do |myord|
+          puts myord.inspect
+          charge_id = myord['id']
+          puts "charge_id = #{charge_id}"
+          charge_array.push(charge_id)
+          puts charge_array
+          subs_hash.store("#{charge_id}", subsid)
+          puts subs_hash
+
+          if action == "change_date"
+            #POST /charges/<charge_id>/change_next_charge_date
+            puts "changing date to #{new_date}"
+            puts "https://api.rechargeapps.com/charges/#{charge_id}/change_next_charge_date"
+            body = {
+                  "next_charge_date" => new_date
+                     }
+              body = body.to_json
+            change_charge_date = HTTParty.post("https://api.rechargeapps.com/charges/#{charge_id}/change_next_charge_date", :headers => my_change_charge_header, :body => body)
+            check_recharge_limits(change_charge_date)
+            puts change_charge_date.inspect
+
+
+          elsif action == "skip_month"
+            #POST /charges/<charge_id>/skip
+
+
+
+            correct_subscription_id = subs_hash["#{charge_id}"]
+            body = {
+                  "subscription_id": "#{correct_subscription_id}"
+                     }
+              body = body.to_json
+              puts body
+            skip_charge_date = HTTParty.post("https://api.rechargeapps.com/charges/#{charge_id}/skip", :headers => my_change_charge_header, :body => body)
+            check_recharge_limits(skip_charge_date)
+            puts skip_charge_date.inspect
+
+
+          else
+            puts "action must be skip_month or change_date and action was #{action}"
+          end
+
+
+
+        end
+
+        
+      
+
+
+
+      end
+
+     
+  end  
+    
+    
+
+
+end
+
 
 end
