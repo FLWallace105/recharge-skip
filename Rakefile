@@ -1,9 +1,13 @@
 require './recharge_listener'
 require 'resque/tasks'
-require 'standalone_migrations'
+#require 'standalone_migrations'
 require_relative "tag_customers"
+require 'sinatra/activerecord'
+require 'sinatra/activerecord/rake'
+#require './recharge_listener'
 
-StandaloneMigrations::Tasks.load_tasks
+
+#StandaloneMigrations::Tasks.load_tasks
 
 desc "get customer subscriptions"
 task :show_customers do |t|

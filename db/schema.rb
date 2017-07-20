@@ -35,6 +35,12 @@ ActiveRecord::Schema.define(version: 20170718195839) do
     t.integer "order_day_of_month"
     t.integer "order_day_of_week"
     t.jsonb "properties"
+    end
+  
+  create_table "tickets", force: :cascade do |t|
+    t.string "influencer_code"
+    t.boolean "code_used", default: false
+    t.index ["influencer_code"], name: "index_tickets_on_influencer_code", unique: true
   end
 
 end
