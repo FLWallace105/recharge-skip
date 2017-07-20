@@ -1,0 +1,28 @@
+development:
+  adapter: postgresql
+  encoding: utf8
+  reconnect: false
+  database: customers_dev
+  pool: 5
+  username: floyd
+  password: '10tul10'
+  
+
+production:
+  adapter: postgresql
+  encoding: utf8
+  reconnect: false
+  database: customers_prod
+  pool: 5
+  username: floyd
+  password: '10tul10'
+  
+
+test: &test
+  adapter: postgresql
+  encoding: utf8
+  reconnect: false
+  database: customers_test
+  pool: 5
+  username: floyd
+  password: '10tul10'

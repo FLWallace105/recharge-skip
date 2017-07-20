@@ -7,5 +7,7 @@ gem 'dotenv'
 gem "resque"
 gem 'activeresource', '~>5.0'
 gem 'shopify_api', '~>4.3'
+gem 'pg'
+gem 'standalone_migrations'
 #gem 'activeresource', github: 'rails/activeresource'
 #gem 'shopify_api', '~> 4.3'

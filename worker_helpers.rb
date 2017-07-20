@@ -507,35 +507,32 @@ end
 
 def return_valid_subscription_ids_threemonths(shopify_id, my_get_header)
 
-my_valid_subscription_ids = Array.new
-puts "inside three months helper"
-subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
-check_recharge_limits(subscriptions)
-#puts subscriptions.inspect
-#puts subscriptions.parsed_response['subscriptions']
-mysubscription = subscriptions.parsed_response['subscriptions']
-#puts "--------------"
-#puts mysubscription.inspect
-#puts "-------------"
-#puts mysubscription.length
+  my_valid_subscription_ids = Array.new
+  puts "inside three months helper"
+  subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => my_get_header)
+  check_recharge_limits(subscriptions)
+  puts subscriptions.inspect
+  #puts subscriptions.parsed_response['subscriptions']
+  mysubscription = subscriptions.parsed_response['subscriptions']
+  #puts "--------------"
+  #puts mysubscription.inspect
+  #puts "-------------"
+  #puts mysubscription.length
 
-mysubscription.length.times do |i|
-  puts "********************"
-  puts mysubscription[i]
-  puts "*******************"
-  id = mysubscription[i]['id']
-  status = mysubscription[i]['status']
-  product_title = mysubscription[i]['product_title']
-  charge_interval_frequency = mysubscription[i]['charge_interval_frequency'].to_i
-  if status == "ACTIVE" && charge_interval_frequency == 3
-    puts "#{id}, #{status}, #{product_title}"
-    puts "Adding #{id} to valid subscription_ids for three months"
-    my_valid_subscription_ids.push(id)
+  mysubscription.length.times do |i|
+    puts "********************"
+    puts mysubscription[i]
+    puts "*******************"
+    id = mysubscription[i]['id']
+    status = mysubscription[i]['status']
+    product_title = mysubscription[i]['product_title']
+    charge_interval_frequency = mysubscription[i]['charge_interval_frequency'].to_i
+    if status == "ACTIVE" && charge_interval_frequency == 3
+      puts "#{id}, #{status}, #{product_title}"
+      puts "Adding #{id} to valid subscription_ids for three months"
+      my_valid_subscription_ids.push(id)
+    end  
   end
-  
-end
-
-
   return my_valid_subscription_ids
 end
 
@@ -589,24 +586,34 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
     first_day_current_month = Date.today
     last_day_current_query = last_day_current_month.strftime("%Y-%m-%d")
     first_day_current_query = first_day_current_month.strftime("%Y-%m-%d")
-    orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_min=#{first_day_current_query}", :headers => my_get_header)
-    #puts orders.inspect
-    check_recharge_limits(orders)
-    order_data = orders.parsed_response['orders']
-    puts "ORDER DATA ---------> #{order_data}"
-    puts "action is #{action}"
+    
+    next_month = my_today_date >> 1
+    first_day_next_month = next_month.beginning_of_month
     prev_month = my_today_date << 1
     prev_month_int = prev_month.strftime("%m").to_i
     current_year = my_today_date.strftime("%Y").to_i
     
     puts "Working on three month box subscription change date"
+    puts "my action is #{action}"
+   
     #puts order_info.inspect
     #puts "HALLOOOOOOO"
     #puts my_order_stuff.inspect
+
+    if action == "change_date" 
+      orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_min=#{first_day_current_query}", :headers => my_get_header)
+    #puts orders.inspect
+    check_recharge_limits(orders)
+    order_data = orders.parsed_response['orders']
+    #puts "ORDER DATA ---------> #{order_data}"
+    puts "action is #{action}"
+
+    puts "attempting to change the date of an order for this month"  
     order_data.each do |myord|
       puts "--------------------"
       puts myord.inspect
       puts "--------------------"
+      is_prepaid = myord['is_prepaid'].to_i
       my_order_id = myord['id']
       scheduled_at = myord['scheduled_at']
       scheduled_date = DateTime.strptime(scheduled_at, '%Y-%m-%dT%H:%M:%S')
@@ -616,16 +623,18 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
       created_date = DateTime.strptime(created_at, '%Y-%m-%dT%H:%M:%S')
       num_days = scheduled_date - created_date
       
-      puts "Order ID        Scheduled AT          Product Title"
-      puts "----------------------------------------------------"
-      puts "#{my_order_id}, #{scheduled_at}, #{product_title}"
-      puts "----------------------------------------------------"
-      #check to see if title is proper, i.e. it has the regexp match to digit months or box
-
-      if subscription_array_three.include? local_subscription_id
-        puts "Because title has box or digit/month in it processing #{my_order_id} ..."
+        #check to see if title is proper, i.e. it has the regexp match to digit months or box
+      
+      if is_prepaid == 1 && (subscription_array_three.include? local_subscription_id)
+      #if subscription_array_three.include? local_subscription_id
+        puts "Because its prepaid  processing #{my_order_id} ..."
+        puts "Order ID        Scheduled AT          Product Title      Subscription ID"
+        puts "----------------------------------------------------"
+        puts "#{my_order_id}, #{scheduled_at}, #{product_title}, #{local_subscription_id}"
+        puts "----------------------------------------------------"
+    
         
-        if scheduled_date <= my_today_date
+        if scheduled_date <= my_today_date 
           puts "order #{my_order_id} is #{scheduled_at} which is today or earlier, can't process for change ship date"
         else
           puts "Checking order #{my_order_id} .."
@@ -633,67 +642,19 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
           order_month = scheduled_date.strftime("%B")
           if order_month == current_month
             puts "processing change shipment date request for #{my_order_id} with scheduled_at date #{scheduled_at}"
-            #call to recharge here
-            #POST /orders/<order_id>/change_date
-
-            #here we switch actions between changing ship date and skipping to next month
-            if action == "change_date"
-              body = {
-                  "shipping_date" => new_date
-                     }
-              body = body.to_json
-            
-            puts body
-            local_created_at_year = created_date.strftime("%Y").to_i
-            local_scheduled_at_year = scheduled_date.strftime("%Y").to_i
-            local_created_at_month = created_date.strftime("%m").to_i
-            #puts local_created_at_year
-            #puts local_scheduled_at_year
-            #puts local_created_at_month
-            if (current_year > local_created_at_year) || (local_created_at_month <= prev_month_int)
-        
-            
-
-
-              change_order_date = HTTParty.post("https://api.rechargeapps.com/orders/#{my_order_id}/change_date", :headers => my_change_charge_header, :body => body)
-              check_recharge_limits(change_order_date)
-              puts change_order_date.inspect
-            else
-              puts "Sorry can't change date, this order was created this month: #{created_at}"
-            end
-
-          elsif action == "skip_month"
-            #skip to next month
-            puts "Attempting to skip to next month for 3 month box"
-            next_month_date = scheduled_date >> 1
-            next_month_str = next_month_date.strftime("%Y-%m-%d")
-            puts "Next month skip date is #{next_month_str}"
-            #puts next_month_str
-            body = {
-                  "shipping_date" => next_month_str
-                     }
-              body = body.to_json
-            
-            puts body
-            local_created_at_year = created_date.strftime("%Y").to_i
-            local_scheduled_at_year = scheduled_date.strftime("%Y").to_i
-            local_created_at_month = created_date.strftime("%m").to_i
-           
-
-            if (current_year > local_created_at_year) || (local_created_at_month <= prev_month_int)
-                change_order_date = HTTParty.post("https://api.rechargeapps.com/orders/#{my_order_id}/change_date", :headers => my_change_charge_header, :body => body)
-                check_recharge_limits(change_order_date)
-                puts change_order_date.inspect
-
-              else
-                puts "Sorry can't change date, this order was created this month: #{created_at}"
-              end
-
-
-
-          
-          end
-
+                
+                    body = {
+                        "shipping_date" => new_date
+                      }
+                    body = body.to_json
+                    
+                    puts body
+                    change_order_date = HTTParty.post("https://api.rechargeapps.com/orders/#{my_order_id}/change_date", :headers => my_change_charge_header, :body => body)
+                    check_recharge_limits(change_order_date)
+                    puts change_order_date.inspect
+                    puts "Done changing this order for this month in a 3 month subscription!"
+                    puts "________________________"
+                
           else
             puts "Sorry the scheduled date is #{scheduled_at}, which is next month or later, can't process change date request"
           end
@@ -701,10 +662,91 @@ def find_all_customer_orders_three(recharge_id, my_get_header, my_change_charge_
 
         end
 
+      
 
       end
 
-      puts ""
+      puts " --- --- ---"
+    end #do loop
+    
+    elsif action == "skip_month"
+        #code for three month skips here
+        puts "Attempting to skip the three month customer!"
+        #loop through all subscriptions to find those that can be skipped.
+        subscription_array_three.each do |mysub|
+            puts mysub
+            # GET /subscriptions/<subscription_id>
+            localsub = HTTParty.get("https://api.rechargeapps.com/subscriptions/#{mysub}", :headers => my_get_header)
+            newsub = localsub['subscription']
+            check_recharge_limits(localsub)
+            puts "Subscription info"
+            puts "-------------------"
+            puts localsub.inspect
+            puts "___________________"
+            next_charge = newsub['next_charge_scheduled_at']
+            status = newsub['status']
+            scheduled_date = DateTime.strptime(next_charge, '%Y-%m-%dT%H:%M:%S')
+            if scheduled_date >= first_day_current_month && status == "ACTIVE" 
+              puts "OK, next_charge date is today or later and subscription is active ..."
+              puts "-----------"     
+              puts "id = #{mysub}, next_charge = #{next_charge}, status = #{status}"
+              puts "------------"
+              #POST /subscriptions/<subscription_id>/set_next_charge_date
+              my_new_date = scheduled_date >> 1
+              puts "new subscription charge date = #{my_new_date}"
+              body = {
+                    "date" => my_new_date
+                  }
+
+              body = body.to_json
+              puts body
+              #updatedsub = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{mysub}/set_next_charge_date", :headers => my_change_charge_header, :body => body)
+              #check_recharge_limits(updatedsub)
+             #puts updatedsub.inspect
+
+              #GET /orders?customer_id=123
+              puts "Now adjusting order for that subscription"
+              new_orders = HTTParty.get("https://api.rechargeapps.com/orders?customer_id=#{recharge_id}&date_min=#{first_day_current_query}", :headers => my_get_header)
+              check_recharge_limits(new_orders)
+              new_order_data = new_orders.parsed_response['orders']
+              new_order_data.each do |neworder|
+                #puts "*******************"
+                #puts neworder.inspect
+                #puts "******************"
+                #POST /orders/<order_id>/change_date
+                my_id = neworder['id']
+                shipping_date = neworder['shipping_date']
+                ck_shipping_date = DateTime.strptime(shipping_date, '%Y-%m-%dT%H:%M:%S')
+                status = neworder['status']
+                cancelled_at = neworder['cancelled_at']
+                is_prepaid = neworder['is_prepaid'].to_i
+                if is_prepaid == 1 && ck_shipping_date > my_today_date
+                  #scheduled_at = neworder['scheduled_at']
+                  
+                  puts "id = #{my_id}, shipping_date = #{shipping_date}, is_prepaid = #{is_prepaid}"
+                
+                  my_shipping_date = DateTime.strptime(shipping_date, '%Y-%m-%dT%H:%M:%S')
+                  #puts "my_shipping_date obj = #{my_shipping_date}.inspect"
+                  new_shipping_date = my_shipping_date >> 1
+                  my_shipping_date_string = new_shipping_date.strftime("%Y-%m-%dT%H:%M:%S")
+                  puts "new shipping date =#{my_shipping_date_string}"
+                  my_body = {
+                    "shipping_date" => my_shipping_date_string
+                  }
+                  my_body = my_body.to_json
+                  puts my_body
+                  #changed_order = HTTParty.post("https://api.rechargeapps.com/orders/#{my_id}/change_date", :headers => my_change_charge_header)
+                  #check_recharge_limits(changed_order)
+                  #puts changed_order.inspect
+                end
+
+                end
+
+
+            end
+
+          end
+
       end
  
 

@@ -51,8 +51,8 @@ configure do
   INFLUENCER_PRODUCT = ENV['INFLUENCER_PRODUCT']
   INFLUENCER_BOTTLE = ENV['INFLUENCER_BOTTLE']
   INFLUENCER_BOTTLE_ID = ENV['INFLUENCER_BOTTLE_ID']
-
-
+  SHOPIFY_THREE_MONTHS = ENV['SHOPIFY_THREE_MONTHS']
+  CUST_TAG_THREE_MONTHS = ENV['CUST_TAG_THREE_MONTHS']
 
 end
 
@@ -134,6 +134,29 @@ post '/funky-next-month-preview' do
   status 200
   puts "Doing Funky Skip Next Month Preview"
   puts params.inspect
+
+end
+
+post '/subscription_created' do
+  content_type :application_javascript
+  status 200
+  puts "Received new subscriptions"
+  puts params.inspect
+  mystuff = JSON.parse(request.body.read)
+  puts mystuff.inspect
+  Resque.enqueue(SubscriptionListener, mystuff)
+end
+
+
+post '/subscription_deleted' do
+  content_type :application_javascript
+  status 200
+  puts "Received a deleted subscription"
+  puts params.inspect
+  mystuff = JSON.parse(request.body.read)
+  puts mystuff.inspect
+  Resque.enqueue(SubscriptionDeleted, mystuff)
+
 
 end
 
@@ -404,6 +427,129 @@ helpers do
 
   end
 
+end
+
+class SubscriptionDeleted
+  extend FixMonth
+  @queue = "subs_deleted"
+  def self.perform(params)
+    puts "Received a deleted subscription:"
+    puts params.inspect
+    subscription_info = params['subscription']
+    puts subscription_info.inspect
+    customer_id = subscription_info['customer_id']
+    shopify_product_id = subscription_info['shopify_product_id']
+    status = subscription_info['status']
+    puts "customer_id = #{customer_id}, shopify_prod_id = #{shopify_product_id}"
+    puts "Shopify Three months product id = #{SHOPIFY_THREE_MONTHS}"
+    if shopify_product_id.to_i == SHOPIFY_THREE_MONTHS.to_i 
+      puts "We have a three month subscription cancelled, we must un-tag this customer"
+      puts "First we need to get the shopify_customer_id from Recharge"
+      my_customer = HTTParty.get("https://api.rechargeapps.com/customers/#{customer_id}", :headers => $my_get_header)
+      check_recharge_limits(my_customer)
+      customer_info = my_customer.parsed_response
+      puts customer_info.inspect
+      customer_shopify_id  = customer_info['customer']['shopify_customer_id']
+      puts "customer shopify id = #{customer_shopify_id}"
+      ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      my_customer = ShopifyAPI::Customer.find(customer_shopify_id)
+      customer_tags = my_customer.tags
+      my_first_name = my_customer.first_name
+      my_last_name = my_customer.last_name
+      if !customer_tags.nil?
+        tag_array = customer_tags.split(", ")
+        minus_array = Array.new
+        minus_array.push(CUST_TAG_THREE_MONTHS)
+        tag_array = tag_array - minus_array
+        if tag_array.length == 1
+          new_tags = tag_array[0]
+        else
+          new_tags = tag_array.join(", ")
+        end
+        puts "Now attempting to push tags to Shopify"
+        my_customer.tags = new_tags
+        my_customer.save
+        puts "sleeping 3 secs"
+        sleep 3
+        puts "We have set customer #{my_first_name} #{my_last_name} tags = #{new_tags}"
+
+      else
+        puts "We have no tags to remove so not doing anything"
+
+      end
+
+    else
+      puts "Sorry we untag only 3month customers"
+
+    end 
+  end
+end
+
+
+class SubscriptionListener
+  extend FixMonth
+  @queue = "subs_listener"
+  def self.perform(params)
+    puts "Received webhook subscription info:"
+    puts params.inspect
+    subscription_info = params['subscription']
+    puts subscription_info.inspect
+    customer_id = subscription_info['customer_id']
+    shopify_product_id = subscription_info['shopify_product_id']
+    status = subscription_info['status']
+    puts "customer_id = #{customer_id}, shopify_prod_id = #{shopify_product_id}"
+    puts "Shopify Three months product id = #{SHOPIFY_THREE_MONTHS}"
+    if shopify_product_id.to_i == SHOPIFY_THREE_MONTHS.to_i 
+      puts "We have a three month subscription that is, we must tag this customer"
+      puts "First we need to get the shopify_customer_id from Recharge"
+      #GET /customers/<id>
+      my_customer = HTTParty.get("https://api.rechargeapps.com/customers/#{customer_id}", :headers => $my_get_header)
+      check_recharge_limits(my_customer)
+      customer_info = my_customer.parsed_response
+      puts customer_info.inspect
+      customer_shopify_id  = customer_info['customer']['shopify_customer_id']
+      
+      my_customer_tag = {
+             "customer":  {
+             "id": customer_shopify_id,
+              
+              "tags": CUST_TAG_THREE_MONTHS,
+              "note": "Webhook tagging done through API"
+              }
+            }
+      puts "customer shopify id = #{customer_shopify_id}"
+      ShopifyAPI::Base.site = "https://#{$apikey}:#{$password}@#{$shopname}.myshopify.com/admin"
+      my_customer = ShopifyAPI::Customer.find(customer_shopify_id)
+      customer_tags = my_customer.tags
+      my_first_name = my_customer.first_name
+      my_last_name = my_customer.last_name
+      #puts my_customer.inspect
+      #puts customer_tags.inspect
+      tag_array = Array.new
+      new_tags = ""
+      if !customer_tags.nil?
+          tag_array = customer_tags.split(", ")
+          tag_array.push(CUST_TAG_THREE_MONTHS)
+          tag_array.uniq!
+        else
+          
+          tag_array.push(CUST_TAG_THREE_MONTHS)
+        end
+        if tag_array.length == 1
+          new_tags = tag_array[0]
+          else
+          new_tags = tag_array.join(", ")
+          end
+      my_customer.tags = new_tags
+      puts "Sleeping 3 secs."
+      sleep 3
+      my_customer.save
+      puts "We tagged the customer #{my_first_name} #{my_last_name} with: #{new_tags}"
+    else
+      puts "We don't have a three month subscription that is, no tagging"
+    end
+
+  end
 end
 
 
@@ -1193,13 +1339,160 @@ class ChooseDate
     puts "new_date = #{new_date}"
     puts "action = #{action}"
     my_today_date = Date.today
+    first_day_current_month = Date.today.beginning_of_month
     puts "Today's Date is #{my_today_date.to_s}"
     if action == 'change_date' || action == 'skip_month'
       puts "Changing the date for charge/shipping"
+      puts "the Action is #{action}"
       my_recharge_id = find_subscriber_id(shopify_id, $my_get_header)
       #Get alt_title
       current_month = Date.today.strftime("%B")
+      if action == "change_date"
+        #Get all subscriptions, see if its a one month and change it if it is
+        subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+        check_recharge_limits(subscriptions)
+        #puts subscriptions.inspect
+        mysubscription = subscriptions.parsed_response['subscriptions']
+        mysubscription.each do |mysub|
+          puts mysub.inspect
+          charge_interval_frequency = mysub['charge_interval_frequency'].to_i
+          id = mysub['id']
+          created_at = mysub['created_at']
+          created_at_date = DateTime.strptime(created_at, '%Y-%m-%dT%H:%M:%S')
+          created_at_month = created_at_date.strftime("%B")
+          status = mysub['status']
+          flag_ok_to_change = true
+          if current_month == created_at_month
+            flag_ok_to_change = false
+            puts "#{id}, #{status}, created at date is this month: #{created_at}"
+          end
+          status = mysub['status']
+          product_title = mysub['product_title']
+          next_charge_scheduled_at = mysub['next_charge_scheduled_at']
+          next_charge_date = DateTime.strptime(next_charge_scheduled_at, '%Y-%m-%dT%H:%M:%S')
+          charge_date_month = next_charge_date.strftime("%B")
+          if (status != "CANCELLED") && (charge_interval_frequency == 1) && (product_title =~ /\sbox/i) && (flag_ok_to_change)
+            puts "-----------"
+            puts mysub.inspect
+            puts "-----------"
+            puts "Updating the charge date for this subscription to sometime this month ..."
+            body = {
+                "date" => new_date
+                }
+            body = body.to_json
+            puts body
+            #puts id
+            #POST /subscriptions/<subscription_id>/set_next_charge_date
+            change_one_month = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{id}/set_next_charge_date", :headers => $my_change_charge_header, :body => body)
+            puts change_one_month.inspect
+            check_recharge_limits(change_one_month)
+            
+            puts "Changed this one month subscription to #{new_date}"
+          end
+        end
+      elsif action == "skip_month"
+        puts "Attempting to skip the month"
+        #Do the same for the one month folks.
+        subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+        check_recharge_limits(subscriptions)
+        #puts subscriptions.inspect
+        mysubscription = subscriptions.parsed_response['subscriptions']
+        mysubscription.each do |mysub|
+          puts mysub
+          charge_interval_frequency = mysub['charge_interval_frequency'].to_i
+          id = mysub['id']
+          status = mysub['status']
+          next_charge_scheduled_at = mysub['next_charge_scheduled_at']
+          created_at = mysub['created_at']
+          created_at_date = DateTime.strptime(created_at, '%Y-%m-%dT%H:%M:%S')
+          created_at_month = created_at_date.strftime("%B")
+          flag_ok_to_skip = true
+          if current_month == created_at_month
+            flag_ok_to_skip = false
+            puts "#{id}, #{status}, created at date is this month: #{created_at}"
+          end
+          my_next_month = DateTime.strptime(next_charge_scheduled_at, '%Y-%m-%dT%H:%M:%S')
+          my_next_month = my_next_month >> 1
+          my_next_month_str = my_next_month.strftime('%Y-%m-%dT%H:%M:%S')
+          product_title = mysub['product_title']
+          if (status != "CANCELLED") && (charge_interval_frequency == 1) && (product_title =~ /\sbox/i) && (flag_ok_to_skip)
+            puts "-----------"
+            puts mysub.inspect
+            puts "-----------"
+            puts "Updating the charge date for this subscription to NEXT month:"
+            body = {
+                "date" => my_next_month_str
+                }
+            body = body.to_json
+            puts body
+            #POST /subscriptions/<subscription_id>/set_next_charge_date
+            changed_one_month = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{id}/set_next_charge_date", $my_change_charge_header, :body => body)
+            check_recharge_limits(changed_one_month)
+            puts changed_one_month.inspect
+          end
 
+        end
+      end
+
+      puts "Now checking for 3 Month boxes, skips and change dates"
+      puts "action is #{action}"
+      if action == "change_date"
+        puts "Attempting to change this month ship date for a 3 Month Customer"
+        subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+        check_recharge_limits(subscriptions)
+        puts subscriptions.inspect
+        mysubscription.each do |mysub|
+          puts mysub.inspect
+          charge_interval_frequency = mysub['charge_interval_frequency'].to_i
+          id = mysub['id']
+          created_at = mysub['created_at']
+          created_at_date = DateTime.strptime(created_at, '%Y-%m-%dT%H:%M:%S')
+          created_at_month = created_at_date.strftime("%B")
+          status = mysub['status']
+          flag_ok_to_change = true
+          if current_month == created_at_month
+            flag_ok_to_change = false
+            puts "#{id}, #{status}, created at date is this month: #{created_at}"
+          end
+          status = mysub['status']
+          product_title = mysub['product_title']
+          next_charge_scheduled_at = mysub['next_charge_scheduled_at']
+          next_charge_date = DateTime.strptime(next_charge_scheduled_at, '%Y-%m-%dT%H:%M:%S')
+          charge_date_month = next_charge_date.strftime("%B")
+          if (status != "CANCELLED") && (charge_interval_frequency == 3)  && (flag_ok_to_change)
+            puts "-----------"
+            puts mysub.inspect
+            puts "-----------"
+            puts "Updating the charge date for this subscription to sometime this month ..."
+            body = {
+                "date" => new_date
+                }
+            body = body.to_json
+            puts body
+            #puts id
+            #POST /subscriptions/<subscription_id>/set_next_charge_date
+            #change_three_month = HTTParty.post("https://api.rechargeapps.com/subscriptions/#{id}/set_next_charge_date", :headers => $my_change_charge_header, :body => body)
+            #puts change_three_month.inspect
+            #check_recharge_limits(change_three_month)
+            
+            puts "Changed this one month subscription to #{new_date}"
+          end
+        end
+
+
+      elsif action == "skip_month"
+        puts "Attempting to skip the month for a three month customer"
+        subscriptions = HTTParty.get("https://api.rechargeapps.com/subscriptions?shopify_customer_id=#{shopify_id}", :headers => $my_get_header)
+        check_recharge_limits(subscriptions)
+        puts subscriptions.inspect
+
+      end
+
+    else
+      puts "Action must be change_date or skip_month and the action is #{action}"
+
+    end
+=begin
       
       #Get all three month subscriptions that are active and then send them to find_customer_orders_three
       #Which checks against subscription_array for valid ids and then checks for valid skip or change dates
@@ -1236,7 +1529,7 @@ class ChooseDate
     else
       puts "Action must be change_date, and action is #{action} so we can't do anything."
     end
-
+=end
   end
 end
 
