@@ -1,0 +1,7 @@
+FirstName,LastName,Address1,Address2,City,State,zip,email,phone(optional),BraSize,TopSize,BottomSize,3Item
+Justin,Zarabi-One,5553-B Bandini Blvd,,Bell,CA,90201,jzarabi@fambrands.com,213-567-8809,S,M,L,Yes
+Justin,Zarabi-Two,5553-B Bandini Blvd,Suite B,Bell,CA,90202,fwallace@fambrands.com,,L,M,S,Yes
+Justin,Zarabi-Three,5553-B Bandini Blvd,,Bell,CA,90203,lyang@fambrands.com,,XS,M,XL,No
+Justin,Zarabi-Four,5553-B Bandini Blvd,,Bell,CA,90204,flwallace99@fambrands.com,213-555-9955,XL,S,XS,Yes
+Justin,Zarabi-Five,5553-B Bandini Blvd,,Bell,CA,90205,flwallace105@fambrands.com,,M,L,M,No
+Justin,Zarabi-Six,5553-B Bandini Blvd,,Bell,CA,90206,flwallace115@fambrands.com,,L,M,S,No

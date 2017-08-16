@@ -5,9 +5,22 @@ require_relative "tag_customers"
 require 'sinatra/activerecord'
 require 'sinatra/activerecord/rake'
 #require './recharge_listener'
+require_relative "influencer_reader"
 
 
 #StandaloneMigrations::Tasks.load_tasks
+
+desc "load influencer orders into database"
+task :load_influencer do |t|
+  InfluencerUtility::ReadInfluencer.new.readincodes
+
+end
+
+desc "create influencer orders from database to shopify"
+task :create_influencer_order do |t|
+  InfluencerUtility::ReadInfluencer.new.create_influencer_order
+end  
+
 
 desc "get customer subscriptions"
 task :show_customers do |t|

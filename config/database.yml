@@ -1,16 +1,25 @@
 development:
   adapter: postgresql
   encoding: unicode
-  database: access_code
+  database: influencers_development
   pool: 2
   username: <%= ENV['PG_USER'] %>
   password: <%= ENV['PG_PASS'] %>
   host: localhost
 
-  development:
+  test:
   adapter: postgresql
   encoding: unicode
-  database: access_code
+  database: influencers_test
+  pool: 2
+  username: <%= ENV['PG_USER'] %>
+  password: <%= ENV['PG_PASS'] %>
+  host: localhost
+
+  production:
+  adapter: postgresql
+  encoding: unicode
+  database: influencers_production
   pool: 2
   username: <%= ENV['PG_USER'] %>
   password: <%= ENV['PG_PASS'] %>

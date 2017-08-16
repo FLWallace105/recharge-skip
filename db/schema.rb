@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20170718195839) do
+ActiveRecord::Schema.define(version: 20170815200020) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -35,8 +35,26 @@ ActiveRecord::Schema.define(version: 20170718195839) do
     t.integer "order_day_of_month"
     t.integer "order_day_of_week"
     t.jsonb "properties"
-    end
-  
+  end
+
+  create_table "influencers", force: :cascade do |t|
+    t.string "first_name"
+    t.string "last_name"
+    t.string "address1"
+    t.string "address2"
+    t.string "city"
+    t.string "state"
+    t.string "zip"
+    t.string "email"
+    t.string "phone"
+    t.string "bra_size"
+    t.string "top_size"
+    t.string "bottom_size"
+    t.boolean "three_item"
+    t.boolean "processed"
+    t.datetime "time_order_submitted"
+  end
+
   create_table "tickets", force: :cascade do |t|
     t.string "influencer_code"
     t.boolean "code_used", default: false
