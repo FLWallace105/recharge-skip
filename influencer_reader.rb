@@ -65,6 +65,7 @@ module InfluencerUtility
         end
 
         def create_influencer_order
+            start_time = Time.now
             uri = URI.parse(ENV['DATABASE_URL'])
             conn = PG.connect(uri.hostname, uri.port, nil, nil, uri.path[1..-1], uri.user, uri.password)
           
@@ -152,6 +153,13 @@ module InfluencerUtility
                 mytime = DateTime.now.strftime("%Y-%m-%d %H:%M:%S")
                 my_update = "update influencers set processed = \'t\', time_order_submitted = \'#{mytime}\' where id = #{id}"
                 conn.exec(my_update)
+                end_time = Time.now
+                duration = end_time - start_time
+                puts "Running: --------> #{duration} seconds."
+                if duration.ceil > 480
+                    puts "We have been running #{duration} seconds and must exit"
+                    exit
+                end
                 
 
             end
