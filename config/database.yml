@@ -22,6 +22,6 @@ development:
   database: influencers_production
   pool: 2
   url: <%= ENV['DATABASE_URL'] %>
-  username: <%= ENV['PG_USER'] %>
-  password: <%= ENV['PG_PASS'] %>
+  #username: <%= ENV['PG_USER'] %>
+  #password: <%= ENV['PG_PASS'] %>
   #host: localhost
