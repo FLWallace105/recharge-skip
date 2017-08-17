@@ -128,6 +128,7 @@ module InfluencerUtility
 
                     puts new_customer.inspect
                     new_customer.attributes['tags'] = NEW_CUST_TAGS
+                    new_customer.attributes['note'] = "Influencer done through API"
                     new_customer.save
             
                     
@@ -234,6 +235,9 @@ module InfluencerUtility
             my_order = {
                      "order": {
                       "email": myemail, 
+                      "send_receipt": true,
+                      "send_fulfillment_receipt": true,
+                      "note": "Influencer Order through API",
                       "tags": influencer_tag,
                       "line_items": [
                       {
@@ -322,6 +326,9 @@ module InfluencerUtility
             my_order = {
                      "order": {
                       "email": myemail, 
+                      "send_receipt": true,
+                      "send_fulfillment_receipt": true,
+                      "note": "Influencer Order through API",
                       "tags": influencer_tag,
                       "line_items": [
                       {
