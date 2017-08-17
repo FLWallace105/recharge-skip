@@ -10,3 +10,4 @@ gem 'activerecord'
 gem 'sinatra-activerecord'
 gem 'pg'
 gem "activesupport"
+gem "rake"
