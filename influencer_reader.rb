@@ -69,7 +69,7 @@ module InfluencerUtility
             uri = URI.parse(ENV['DATABASE_URL'])
             conn = PG.connect(uri.hostname, uri.port, nil, nil, uri.path[1..-1], uri.user, uri.password)
           
-            myquery = "select * from influencers where processed is not true "
+            myquery = "select * from influencers where processed is not true order by id asc"
             
             results = conn.exec(myquery)
             results.each do |row|
