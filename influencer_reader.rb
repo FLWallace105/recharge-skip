@@ -139,7 +139,7 @@ module InfluencerUtility
                 #puts three_item
                 if three_item == 't'
                     puts "We need to process this order as a three item order"
-                    add_shopify_three_pack_order(email, bottom_size, bra_size, top_size, first_name, last_name, address1, address2, phone, city, state, zip, $apikey, $password, $shopname, SHOPIFY_ELLIE_3PACK_ID, INFLUENCER_TAG, SHOP_WAIT)
+                    add_shopify_three_pack_order(email, bottom_size, bra_size, top_size, first_name, last_name, address1, address2, phone, city, state, zip, $apikey, $password, $shopname, SHOPIFY_ELLIE_3PACK_ID, INFLUENCER_ORDER, SHOP_WAIT)
                     #code to add in access time and set processed = f
 
 
@@ -148,7 +148,7 @@ module InfluencerUtility
                     myaccessories1 = "One Size"
                     myaccessories2 = "One Size"
     
-                    add_shopify_order(email, myaccessories1, myaccessories2, bottom_size, bra_size, top_size, first_name, last_name, address1, address2, phone, city, state, zip, $apikey, $password, $shopname, INFLUENCER_PRODUCT_ID, INFLUENCER_TAG, SHOP_WAIT)
+                    add_shopify_order(email, myaccessories1, myaccessories2, bottom_size, bra_size, top_size, first_name, last_name, address1, address2, phone, city, state, zip, $apikey, $password, $shopname, INFLUENCER_PRODUCT_ID, INFLUENCER_ORDER, SHOP_WAIT)
 
                 end
                 mytime = DateTime.now.strftime("%Y-%m-%d %H:%M:%S")
