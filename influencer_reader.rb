@@ -242,6 +242,7 @@ module InfluencerUtility
                       "line_items": [
                       {
                       "product_id": prod_id,
+                      "sku": "722457737550",
                       "quantity": 1,
                       "price": 0.00,
                       "title": INFLUENCER_PRODUCT,
