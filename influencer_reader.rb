@@ -14,7 +14,10 @@ NEW_CUST_TAGS = ENV['NEW_CUST_TAGS']
 SHOPIFY_ELLIE_3PACK_ID = ENV['SHOPIFY_ELLIE_3PACK_ID']
 SHOPIFY_ELLIE_3PACK_PRODUCT = ENV['SHOPIFY_ELLIE_3PACK_PRODUCT']
 INFLUENCER_SKU = ENV['INFLUENCER_SKU']
+INFLUENCER_VARIANT_ID = ENV['INFLUENCER_VARIANT_ID']
 SHOPIFY_ELLIE_3PACK_SKU = ENV['SHOPIFY_ELLIE_3PACK_SKU']
+SHOPIFY_ELLIE_3PACK_VARIANT_ID = ENV['SHOPIFY_ELLIE_3PACK_VARIANT_ID']
+
 
 module InfluencerUtility
     class ReadInfluencer
@@ -242,7 +245,8 @@ module InfluencerUtility
                       "note": "Influencer Order through API",
                       "tags": influencer_tag,
                       "line_items": [
-                      {
+                      {               
+                      "variant_id": INFLUENCER_VARIANT_ID,
                       "product_id": prod_id,
                       "sku": INFLUENCER_SKU,
                       "quantity": 1,
@@ -335,7 +339,8 @@ module InfluencerUtility
                       "tags": influencer_tag,
                       "line_items": [
                       {
-                      "product_id": prod_id,
+                      "variant_id": SHOPIFY_ELLIE_3PACK_VARIANT_ID,
+                      "product_id": prod_id,    
                       "sku": SHOPIFY_ELLIE_3PACK_SKU,
                       "quantity": 1,
                       "price": 0.00,
